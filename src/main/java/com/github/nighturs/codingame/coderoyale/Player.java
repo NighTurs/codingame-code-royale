@@ -40,8 +40,8 @@ class Player {
             List<BuildingSite> buildingSites = new ArrayList<>();
             for (int i = 0; i < numSites; i++) {
                 int siteId = in.nextInt();
-                int ignore1 = in.nextInt();
-                int ignore2 = in.nextInt();
+                int mineGold = in.nextInt();
+                int maxMineSize = in.nextInt();
                 int structureType = in.nextInt();
                 int owner = in.nextInt();
                 int param1 = in.nextInt();
@@ -51,6 +51,8 @@ class Player {
                         stType,
                         Owner.fromId(owner),
                         param1,
+                        mineGold == -1 ? Optional.empty() : Optional.of(mineGold),
+                        maxMineSize == -1 ? Optional.empty() : Optional.of(maxMineSize),
                         stType == StructureType.TOWER ? param2 : 0,
                         stType == StructureType.BARRACKS ? BarracksType.fromId(param2) : BarracksType.NONE));
             }
@@ -591,12 +593,15 @@ class Player {
         }
     }
 
+    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     static class BuildingSite {
 
         private final BuildingSiteStatic staticInfo;
         private final StructureType structureType;
         private final Owner owner;
         private final int untilTrain;
+        private final Optional<Integer> gold;
+        private final Optional<Integer> maxMineSize;
         private final int towerHP;
         private final BarracksType barracksType;
 
@@ -604,21 +609,34 @@ class Player {
                                           StructureType structureType,
                                           Owner owner,
                                           int untilTrain,
+                                          Optional<Integer> gold,
+                                          Optional<Integer> maxMineSize,
                                           int towerHP,
                                           BarracksType barracksType) {
-            return new BuildingSite(staticInfo, structureType, owner, untilTrain, towerHP, barracksType);
+            return new BuildingSite(staticInfo,
+                    structureType,
+                    owner,
+                    untilTrain,
+                    gold,
+                    maxMineSize,
+                    towerHP,
+                    barracksType);
         }
 
         public BuildingSite(BuildingSiteStatic staticInfo,
                             StructureType structureType,
                             Owner owner,
                             int untilTrain,
+                            Optional<Integer> gold,
+                            Optional<Integer> maxMineSize,
                             int towerHP,
                             BarracksType barracksType) {
             this.staticInfo = staticInfo;
             this.structureType = structureType;
             this.owner = owner;
             this.untilTrain = untilTrain;
+            this.gold = gold;
+            this.maxMineSize = maxMineSize;
             this.towerHP = towerHP;
             this.barracksType = barracksType;
         }
@@ -636,7 +654,7 @@ class Player {
         }
 
         public int getRadius() {
-            return staticInfo.getY();
+            return staticInfo.getRadius();
         }
 
         public StructureType getStructureType() {
@@ -649,6 +667,14 @@ class Player {
 
         public int getUntilTrain() {
             return untilTrain;
+        }
+
+        public Optional<Integer> getGold() {
+            return gold;
+        }
+
+        public Optional<Integer> getMaxMineSize() {
+            return maxMineSize;
         }
 
         public int getTowerHP() {

@@ -2,6 +2,7 @@ package com.github.nighturs.codingame.coderoyale;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Optional;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -19,12 +20,16 @@ public class PlayerTest {
                         Player.StructureType.NONE,
                         Player.Owner.NONE,
                         0,
+                        Optional.empty(),
+                        Optional.empty(),
                         0,
                         Player.BarracksType.NONE),
                         Player.BuildingSite.create(gameState.getBuildingSiteStaticById(1),
                                 Player.StructureType.NONE,
                                 Player.Owner.NONE,
                                 0,
+                                Optional.empty(),
+                                Optional.empty(),
                                 0,
                                 Player.BarracksType.NONE)),
                 Collections.singletonList(Player.Unit.create(500,
