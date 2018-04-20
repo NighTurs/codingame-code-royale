@@ -13,6 +13,9 @@ import java.util.stream.Collectors;
 @SuppressWarnings({"NonFinalUtilityClass", "UtilityClassWithoutPrivateConstructor"})
 class Player {
 
+    static final int KNIGHT_COST = 80;
+    static final int ARCHER_COST = 100;
+
     public static void main(String[] args) {
         Scanner in = new Scanner(System.in);
 
@@ -124,6 +127,35 @@ class Player {
         }
     }
 
+    static class TrainUnitsRule implements Rule {
+
+        @Override
+        public Optional<MoveBuilder> makeMove(GameState gameState) {
+            List<Integer> trainSites = new ArrayList<>();
+            int gold = gameState.getGoldLeft();
+            for (BuildingSite site : gameState.getBuildingSites()) {
+                if (site.getOwner() != Owner.FRIENDLY || site.getStructureType() != StructureType.BARRACKS
+                        || site.getUntilTrain() > 0) {
+                    continue;
+                }
+                int cost = site.getBarracksType() == BarracksType.ARCHER ? ARCHER_COST : KNIGHT_COST;
+                if (gold >= cost) {
+                    gold -= cost;
+                    trainSites.add(site.getId());
+                }
+            }
+            if (!trainSites.isEmpty()) {
+                return Optional.of(new MoveBuilder().setTrainInSites(trainSites));
+            }
+            return Optional.empty();
+        }
+
+        @Override
+        public int priority() {
+            return 0;
+        }
+    }
+
     static class TurnEngine {
 
         private static Optional<MoveBuilder> bestPriorityMove(GameState gameState, List<Rule> rules) {
@@ -145,7 +177,7 @@ class Player {
         public static Move findMove(GameState gameState) {
             List<Rule> queenRules = Arrays.asList(new GoToNewSiteRule(), new BuildStructureRule());
             Optional<MoveBuilder> queenMoveOpt = bestPriorityMove(gameState, queenRules);
-            List<Rule> structureRules = Collections.emptyList(); // TODO: Add rules
+            List<Rule> structureRules = Arrays.asList(new TrainUnitsRule());
             Optional<MoveBuilder> structureMoveOpt = bestPriorityMove(gameState, structureRules);
             MoveBuilder queenMove = queenMoveOpt.orElse(new MoveBuilder());
             queenMove.setTrainInSites(structureMoveOpt.map(MoveBuilder::getTrainInSites)
