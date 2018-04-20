@@ -77,6 +77,92 @@ class Player {
         int priority();
     }
 
+    static class RunFromKnights implements Rule {
+
+        private static final int PANIC_MODE_DIST = 100;
+        private static final int TOWER_CIRCLING_RADIUS = 100;
+
+        @SuppressWarnings("SuspiciousNameCombination")
+        @Override
+        public Optional<MoveBuilder> makeMove(GameState gameState) {
+
+            boolean panicMode = false;
+            int enemiesCount = 0;
+            double sumX = 0;
+            double sumY = 0;
+            for (Unit unit : gameState.getUnits()) {
+                if (unit.getOwner() != Owner.ENEMY || unit.getUnitType() != UnitType.KNIGHT) {
+                    continue;
+                }
+                if (Utils.dist(gameState.getMyQueen().getX(), gameState.getMyQueen().getY(), unit.getX(), unit.getY())
+                        < PANIC_MODE_DIST) {
+                    panicMode = true;
+                    enemiesCount++;
+                    sumX += unit.getX();
+                    sumY += unit.getY();
+                }
+            }
+            if (!panicMode) {
+                return Optional.empty();
+            }
+            double enemyCenterX = sumX / enemiesCount;
+            double enemyCenterY = sumY / enemiesCount;
+
+            double minCumDist = Double.MAX_VALUE;
+            BuildingSite targetTower = null;
+            for (BuildingSite siteA : gameState.getBuildingSites()) {
+                if (siteA.getOwner() != Owner.FRIENDLY || siteA.getStructureType() != StructureType.TOWER) {
+                    continue;
+                }
+                double sumDist = 0;
+                for (BuildingSite siteB : gameState.getBuildingSites()) {
+                    if (siteB.getOwner() != Owner.FRIENDLY || siteB.getStructureType() != StructureType.TOWER
+                            || siteA.getId() == siteB.getId()) {
+                        continue;
+                    }
+                    sumDist += Utils.dist(siteA.getX(), siteA.getY(), siteB.getX(), siteB.getY());
+                }
+                if (minCumDist > sumDist) {
+                    minCumDist = sumDist;
+                    targetTower = siteA;
+                }
+            }
+            if (targetTower == null) {
+                return Optional.empty();
+            }
+
+            double targetTowerX = targetTower.getX();
+            double targetTowerY = targetTower.getY();
+            double queenX = gameState.getMyQueen().getX() - targetTowerX;
+            double queenY = gameState.getMyQueen().getY() - targetTowerY;
+            double k = TOWER_CIRCLING_RADIUS / Utils.dist(0, 0, queenX, queenY);
+            queenX = queenX * k;
+            queenY = queenY * k;
+            enemyCenterX = enemyCenterX - targetTowerX;
+            enemyCenterY = enemyCenterY - targetTowerY;
+            double targetX;
+            double targetY;
+            if (Utils.dist(-queenY, queenX, enemyCenterX, enemyCenterY) > Utils.dist(queenY,
+                    -queenX,
+                    enemyCenterX,
+                    enemyCenterY)) {
+                targetX = -queenY;
+                targetY = queenX;
+            } else {
+                targetX = queenY;
+                targetY = -queenX;
+            }
+            targetX += targetTowerX;
+            targetY += targetTowerY;
+            return Optional.of(new MoveBuilder().setX((int) targetX).setY((int) targetY));
+        }
+
+        @Override
+        public int priority() {
+            return 2;
+        }
+    }
+
     static class GoToNewSiteRule implements Rule {
 
         @Override
@@ -143,7 +229,7 @@ class Player {
 
         @Override
         public int priority() {
-            return 1;
+            return 3;
         }
     }
 
@@ -195,7 +281,8 @@ class Player {
         }
 
         public static Move findMove(GameState gameState) {
-            List<Rule> queenRules = Arrays.asList(new GoToNewSiteRule(), new BuildStructureRule());
+            List<Rule> queenRules =
+                    Arrays.asList(new GoToNewSiteRule(), new BuildStructureRule(), new RunFromKnights());
             Optional<MoveBuilder> queenMoveOpt = bestPriorityMove(gameState, queenRules);
             List<Rule> structureRules = Arrays.asList(new TrainUnitsRule());
             Optional<MoveBuilder> structureMoveOpt = bestPriorityMove(gameState, structureRules);
@@ -277,6 +364,10 @@ class Player {
     static class Utils {
 
         public static double dist(int x1, int y1, int x2, int y2) {
+            return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+        }
+
+        public static double dist(double x1, double y1, double x2, double y2) {
             return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
         }
     }
