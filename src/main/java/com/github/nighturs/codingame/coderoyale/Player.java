@@ -468,6 +468,7 @@ class Player {
 
     enum StructureType {
         NONE,
+        MINE,
         TOWER,
         BARRACKS;
 
@@ -475,6 +476,8 @@ class Player {
             switch (id) {
                 case -1:
                     return NONE;
+                case 0:
+                    return MINE;
                 case 1:
                     return TOWER;
                 case 2:
