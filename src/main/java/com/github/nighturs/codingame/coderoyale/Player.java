@@ -15,6 +15,8 @@ class Player {
 
     static final int KNIGHT_COST = 80;
     static final int ARCHER_COST = 100;
+    static final int GRID_WIDTH = 1920;
+    static final int GRID_HEIGHT = 1000;
 
     public static void main(String[] args) {
         Scanner in = new Scanner(System.in);
@@ -44,11 +46,13 @@ class Player {
                 int owner = in.nextInt();
                 int param1 = in.nextInt();
                 int param2 = in.nextInt();
+                StructureType stType = StructureType.fromId(structureType);
                 buildingSites.add(BuildingSite.create(gameState.getBuildingSiteStaticById(siteId),
-                        StructureType.fromId(structureType),
+                        stType,
                         Owner.fromId(owner),
                         param1,
-                        BarracksType.fromId(param2)));
+                        stType == StructureType.TOWER ? param2 : 0,
+                        stType == StructureType.BARRACKS ? BarracksType.fromId(param2) : BarracksType.NONE));
             }
             List<Unit> units = new ArrayList<>();
             int numUnits = in.nextInt();
@@ -112,11 +116,27 @@ class Player {
 
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
+
+            int countKnightBarracks = 0;
+            for (BuildingSite site : gameState.getBuildingSites()) {
+                if (site.getOwner() != Owner.FRIENDLY) {
+                    continue;
+                }
+                if (site.getBarracksType() == BarracksType.KNIGHT) {
+                    countKnightBarracks++;
+                }
+            }
+
             Optional<BuildingSite> touchSite = gameState.getTouchedSiteOpt();
             if (touchSite.isPresent() && touchSite.get().getOwner() != Owner.FRIENDLY) {
-                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
-                        .setStructureType(StructureType.BARRACKS)
-                        .setBarracksType(BarracksType.KNIGHT));
+                if (countKnightBarracks == 0) {
+                    return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                            .setStructureType(StructureType.BARRACKS)
+                            .setBarracksType(BarracksType.KNIGHT));
+                } else {
+                    return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                            .setStructureType(StructureType.TOWER));
+                }
             }
             return Optional.empty();
         }
@@ -291,7 +311,10 @@ class Player {
             } else if (x != null) {
                 sb.append(String.format("MOVE %d %d", x, y));
             } else {
-                sb.append(String.format("BUILD %d BARRACKS-%s", siteId, barracksType));
+                sb.append(String.format("BUILD %d %s", siteId, structureType));
+                if (structureType == StructureType.BARRACKS) {
+                    sb.append(String.format("-%s", barracksType));
+                }
             }
             sb.append("\nTRAIN");
             trainInSites.forEach(z -> sb.append(" ").append(z));
@@ -354,12 +377,15 @@ class Player {
 
     enum StructureType {
         NONE,
+        TOWER,
         BARRACKS;
 
         private static StructureType fromId(int id) {
             switch (id) {
                 case -1:
                     return NONE;
+                case 1:
+                    return TOWER;
                 case 2:
                     return BARRACKS;
                 default:
@@ -390,7 +416,8 @@ class Player {
     enum BarracksType {
         NONE,
         KNIGHT,
-        ARCHER;
+        ARCHER,
+        GIANT;
 
         public static BarracksType fromId(int id) {
             switch (id) {
@@ -400,6 +427,8 @@ class Player {
                     return KNIGHT;
                 case 1:
                     return ARCHER;
+                case 2:
+                    return GIANT;
                 default:
                     throw new RuntimeException("Unsupported id");
             }
@@ -409,7 +438,8 @@ class Player {
     enum UnitType {
         QUEEN,
         KNIGHT,
-        ARCHER;
+        ARCHER,
+        GIANT;
 
         private static UnitType fromId(int id) {
             switch (id) {
@@ -419,6 +449,8 @@ class Player {
                     return KNIGHT;
                 case 1:
                     return ARCHER;
+                case 2:
+                    return GIANT;
                 default:
                     throw new RuntimeException("Unsupported id");
             }
@@ -471,25 +503,29 @@ class Player {
         private final StructureType structureType;
         private final Owner owner;
         private final int untilTrain;
+        private final int towerHP;
         private final BarracksType barracksType;
 
         public static BuildingSite create(BuildingSiteStatic staticInfo,
                                           StructureType structureType,
                                           Owner owner,
                                           int untilTrain,
+                                          int towerHP,
                                           BarracksType barracksType) {
-            return new BuildingSite(staticInfo, structureType, owner, untilTrain, barracksType);
+            return new BuildingSite(staticInfo, structureType, owner, untilTrain, towerHP, barracksType);
         }
 
         public BuildingSite(BuildingSiteStatic staticInfo,
                             StructureType structureType,
                             Owner owner,
                             int untilTrain,
+                            int towerHP,
                             BarracksType barracksType) {
             this.staticInfo = staticInfo;
             this.structureType = structureType;
             this.owner = owner;
             this.untilTrain = untilTrain;
+            this.towerHP = towerHP;
             this.barracksType = barracksType;
         }
 
@@ -519,6 +555,10 @@ class Player {
 
         public int getUntilTrain() {
             return untilTrain;
+        }
+
+        public int getTowerHP() {
+            return towerHP;
         }
 
         public BarracksType getBarracksType() {
