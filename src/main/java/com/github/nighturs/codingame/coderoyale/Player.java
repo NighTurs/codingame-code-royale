@@ -2,9 +2,10 @@ package com.github.nighturs.codingame.coderoyale;
 
 import java.util.Scanner;
 
+@SuppressWarnings({"NonFinalUtilityClass", "UtilityClassWithoutPrivateConstructor"})
 class Player {
 
-    public static void main(String args[]) {
+    public static void main(String[] args) {
         Scanner in = new Scanner(System.in);
         int numSites = in.nextInt();
         for (int i = 0; i < numSites; i++) {
@@ -14,7 +15,7 @@ class Player {
             int radius = in.nextInt();
         }
 
-        // game loop
+        //noinspection InfiniteLoopStatement
         while (true) {
             int gold = in.nextInt();
             int touchedSite = in.nextInt(); // -1 if none
