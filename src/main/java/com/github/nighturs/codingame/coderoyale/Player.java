@@ -74,12 +74,53 @@ class Player {
 
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
+            if (gameState.getTouchedSiteOpt().isPresent()
+                    && gameState.getTouchedSiteOpt().get().getOwner() != Owner.FRIENDLY) {
+                return Optional.empty();
+            }
+            double dist = Double.MAX_VALUE;
+            BuildingSite nearestSite = null;
+            for (BuildingSite site : gameState.getBuildingSites()) {
+                if (site.getOwner() == Owner.FRIENDLY) {
+                    continue;
+                }
+                double curDist = Utils.dist(site.getX(),
+                        site.getY(),
+                        gameState.getMyQueen().getX(),
+                        gameState.getMyQueen().getY());
+                if (curDist < dist) {
+                    dist = curDist;
+                    nearestSite = site;
+                }
+            }
+            if (nearestSite != null) {
+                return Optional.of(new MoveBuilder().setX(nearestSite.getX()).setY(nearestSite.getY()));
+            }
             return Optional.empty();
         }
 
         @Override
         public int priority() {
             return 0;
+        }
+    }
+
+    static class BuildStructureRule implements Rule {
+
+        @Override
+        public Optional<MoveBuilder> makeMove(GameState gameState) {
+            Optional<BuildingSite> touchSite = gameState.getTouchedSiteOpt();
+            if (touchSite.isPresent() && touchSite.get().getOwner() != Owner.FRIENDLY) {
+                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                        .setStructureType(StructureType.BARRACKS)
+                        .setBarracksType(BarracksType.KNIGHT));
+            }
+            return Optional.empty();
+        }
+
+        @Override
+        public int priority() {
+            return 1;
         }
     }
 
@@ -102,7 +143,7 @@ class Player {
         }
 
         public static Move findMove(GameState gameState) {
-            List<Rule> queenRules = Arrays.asList(new GoToNewSiteRule());
+            List<Rule> queenRules = Arrays.asList(new GoToNewSiteRule(), new BuildStructureRule());
             Optional<MoveBuilder> queenMoveOpt = bestPriorityMove(gameState, queenRules);
             List<Rule> structureRules = Collections.emptyList(); // TODO: Add rules
             Optional<MoveBuilder> structureMoveOpt = bestPriorityMove(gameState, structureRules);
@@ -117,12 +158,13 @@ class Player {
 
         private final List<BuildingSiteStatic> buildingSiteStatics;
         private final Map<Integer, BuildingSiteStatic> buildingSiteStaticById;
-        private List<BuildingSite> buildingSite;
+        private List<BuildingSite> buildingSites;
         private Map<Integer, BuildingSite> buildingSiteById;
         private List<Unit> units;
         private int goldLeft;
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private Optional<BuildingSite> touchedSiteOpt;
+        private Unit myQueen;
 
         public static GameState create(List<BuildingSiteStatic> buildingSiteStatics) {
             return new GameState(buildingSiteStatics);
@@ -134,6 +176,22 @@ class Player {
                     .collect(Collectors.toMap(BuildingSiteStatic::getId, Function.identity()));
         }
 
+        public List<BuildingSite> getBuildingSites() {
+            return buildingSites;
+        }
+
+        public List<Unit> getUnits() {
+            return units;
+        }
+
+        public int getGoldLeft() {
+            return goldLeft;
+        }
+
+        public Optional<BuildingSite> getTouchedSiteOpt() {
+            return touchedSiteOpt;
+        }
+
         public BuildingSiteStatic getBuildingSiteStaticById(int id) {
             return buildingSiteStaticById.get(id);
         }
@@ -142,16 +200,32 @@ class Player {
             return buildingSiteById.get(id);
         }
 
+        public Unit getMyQueen() {
+            return myQueen;
+        }
+
         public void initTurn(int gold,
                              int touchedSite,
-                             List<BuildingSite> buildingSites,
+                             @SuppressWarnings("ParameterHidesMemberVariable") List<BuildingSite> buildingSites,
                              @SuppressWarnings("ParameterHidesMemberVariable") List<Unit> units) {
             buildingSiteById =
                     buildingSites.stream().collect(Collectors.toMap(BuildingSite::getId, Function.identity()));
             goldLeft = gold;
             touchedSiteOpt = touchedSite == -1 ? Optional.empty() : Optional.of(getBuildingSiteById(touchedSite));
-            buildingSite = buildingSites;
+            this.buildingSites = buildingSites;
             this.units = units;
+            //noinspection ConstantConditions
+            this.myQueen = units.stream()
+                    .filter(x -> x.getOwner() == Owner.FRIENDLY && x.getUnitType() == UnitType.QUEEN)
+                    .findFirst()
+                    .get();
+        }
+    }
+
+    static class Utils {
+
+        public static double dist(int x1, int y1, int x2, int y2) {
+            return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
         }
     }
 
@@ -160,13 +234,20 @@ class Player {
         private final Integer x, y;
         private final Integer siteId;
         private final StructureType structureType;
+        private final BarracksType barracksType;
         private final List<Integer> trainInSites;
 
-        public Move(Integer x, Integer y, Integer siteId, StructureType structureType, List<Integer> trainInSites) {
+        public Move(Integer x,
+                    Integer y,
+                    Integer siteId,
+                    StructureType structureType,
+                    BarracksType barracksType,
+                    List<Integer> trainInSites) {
             this.x = x;
             this.y = y;
             this.siteId = siteId;
             this.structureType = structureType;
+            this.barracksType = barracksType;
             this.trainInSites = trainInSites;
         }
 
@@ -174,13 +255,13 @@ class Player {
         public String toString() {
             final StringBuilder sb = new StringBuilder();
             if (x == null && structureType == null) {
-                sb.append("WAIT\n");
+                sb.append("WAIT");
             } else if (x != null) {
                 sb.append(String.format("MOVE %d %d", x, y));
             } else {
-                sb.append(String.format("BUILD %d BARRACKS-%d", siteId, structureType.getId()));
+                sb.append(String.format("BUILD %d BARRACKS-%s", siteId, barracksType));
             }
-            sb.append("TRAIN");
+            sb.append("\nTRAIN");
             trainInSites.forEach(z -> sb.append(" ").append(z));
             return sb.toString();
         }
@@ -191,7 +272,8 @@ class Player {
         private Integer x;
         private Integer y;
         private Integer siteId;
-        private Player.StructureType structureType;
+        private StructureType structureType;
+        private BarracksType barracksType;
         private List<Integer> trainInSites;
 
         public MoveBuilder setX(Integer x) {
@@ -209,8 +291,13 @@ class Player {
             return this;
         }
 
-        public MoveBuilder setStructureType(Player.StructureType structureType) {
+        public MoveBuilder setStructureType(StructureType structureType) {
             this.structureType = structureType;
+            return this;
+        }
+
+        public MoveBuilder setBarracksType(BarracksType barracksType) {
+            this.barracksType = barracksType;
             return this;
         }
 
@@ -228,22 +315,14 @@ class Player {
                     y,
                     siteId,
                     structureType,
+                    barracksType,
                     trainInSites == null ? Collections.emptyList() : trainInSites);
         }
     }
 
     enum StructureType {
-        NONE(-1),
-        BARRACKS(2);
-        private final int id;
-
-        StructureType(int id) {
-            this.id = id;
-        }
-
-        public int getId() {
-            return id;
-        }
+        NONE,
+        BARRACKS;
 
         private static StructureType fromId(int id) {
             switch (id) {
@@ -281,7 +360,7 @@ class Player {
         KNIGHT,
         ARCHER;
 
-        private static BarracksType fromId(int id) {
+        public static BarracksType fromId(int id) {
             switch (id) {
                 case -1:
                     return NONE;

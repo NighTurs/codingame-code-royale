@@ -27,8 +27,8 @@ public class PlayerTest {
                                 Player.BarracksType.NONE)),
                 Collections.singletonList(Player.Unit.create(500,
                         500,
-                        Player.Owner.ENEMY,
-                        Player.UnitType.KNIGHT,
+                        Player.Owner.FRIENDLY,
+                        Player.UnitType.QUEEN,
                         100)));
         Assert.assertTrue(Player.TurnEngine.findMove(gameState).toString().matches("(WAIT|MOVE).*?\nTRAIN"));
     }
