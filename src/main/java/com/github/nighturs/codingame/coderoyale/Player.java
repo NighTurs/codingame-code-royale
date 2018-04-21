@@ -50,10 +50,11 @@ class Player {
                 buildingSites.add(BuildingSite.create(gameState.getBuildingSiteStaticById(siteId),
                         stType,
                         Owner.fromId(owner),
-                        param1,
+                        stType == StructureType.BARRACKS ? param1 : 0,
                         mineGold == -1 ? Optional.empty() : Optional.of(mineGold),
                         maxMineSize == -1 ? Optional.empty() : Optional.of(maxMineSize),
-                        stType == StructureType.TOWER ? param2 : 0,
+                        stType == StructureType.TOWER ? param1 : 0,
+                        stType == StructureType.MINE ? param1 : 0,
                         stType == StructureType.BARRACKS ? BarracksType.fromId(param2) : BarracksType.NONE));
             }
             List<Unit> units = new ArrayList<>();
@@ -202,10 +203,13 @@ class Player {
 
     static class BuildStructureRule implements Rule {
 
+        private static final int OPTIMAL_MINE_COUNT = 3;
+
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
 
             int countKnightBarracks = 0;
+            int countMines = 0;
             for (BuildingSite site : gameState.getBuildingSites()) {
                 if (site.getOwner() != Owner.FRIENDLY) {
                     continue;
@@ -213,11 +217,25 @@ class Player {
                 if (site.getBarracksType() == BarracksType.KNIGHT) {
                     countKnightBarracks++;
                 }
+                if (site.getStructureType() == StructureType.MINE) {
+                    countMines++;
+                }
             }
 
             Optional<BuildingSite> touchSite = gameState.getTouchedSiteOpt();
+
+            if (touchSite.isPresent() && touchSite.get().getOwner() == Owner.FRIENDLY
+                    && touchSite.get().getStructureType() == StructureType.MINE
+                    && touchSite.get().getMaxMineSize().orElse(0) > touchSite.get().getIncomeRate()) {
+                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                        .setStructureType(StructureType.MINE));
+            }
+
             if (touchSite.isPresent() && touchSite.get().getOwner() != Owner.FRIENDLY) {
-                if (countKnightBarracks == 0) {
+                if (countMines < OPTIMAL_MINE_COUNT) {
+                    return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                            .setStructureType(StructureType.MINE));
+                } else if (countKnightBarracks == 0) {
                     return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
                             .setStructureType(StructureType.BARRACKS)
                             .setBarracksType(BarracksType.KNIGHT));
@@ -603,6 +621,7 @@ class Player {
         private final Optional<Integer> gold;
         private final Optional<Integer> maxMineSize;
         private final int towerHP;
+        private final int incomeRate;
         private final BarracksType barracksType;
 
         public static BuildingSite create(BuildingSiteStatic staticInfo,
@@ -612,6 +631,7 @@ class Player {
                                           Optional<Integer> gold,
                                           Optional<Integer> maxMineSize,
                                           int towerHP,
+                                          int incomeRate,
                                           BarracksType barracksType) {
             return new BuildingSite(staticInfo,
                     structureType,
@@ -620,6 +640,7 @@ class Player {
                     gold,
                     maxMineSize,
                     towerHP,
+                    incomeRate,
                     barracksType);
         }
 
@@ -630,6 +651,7 @@ class Player {
                             Optional<Integer> gold,
                             Optional<Integer> maxMineSize,
                             int towerHP,
+                            int incomeRate,
                             BarracksType barracksType) {
             this.staticInfo = staticInfo;
             this.structureType = structureType;
@@ -638,6 +660,7 @@ class Player {
             this.gold = gold;
             this.maxMineSize = maxMineSize;
             this.towerHP = towerHP;
+            this.incomeRate = incomeRate;
             this.barracksType = barracksType;
         }
 
@@ -675,6 +698,10 @@ class Player {
 
         public Optional<Integer> getMaxMineSize() {
             return maxMineSize;
+        }
+
+        public int getIncomeRate() {
+            return incomeRate;
         }
 
         public int getTowerHP() {
