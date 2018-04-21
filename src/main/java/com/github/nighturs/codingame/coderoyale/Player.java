@@ -88,7 +88,7 @@ class Player {
 
     static class RunFromKnightsRule implements Rule {
 
-        private static final int PANIC_MODE_DIST = 100;
+        private static final int PANIC_MODE_DIST = 300;
         private static final int TOWER_CIRCLING_RADIUS = 100;
 
         @SuppressWarnings("SuspiciousNameCombination")
