@@ -355,25 +355,10 @@ class Player {
 
             if (touchSite.isPresent()) {
                 for (SimpleEntry<BuildGoal, Integer> goal : buildOrder) {
-                    break_label:
                     switch (goal.getKey()) {
                         case MINING:
-
                             if (mining < goal.getValue() && touchSite.get().getOwner() == Owner.NONE
-                                    && touchSite.get().getGold().orElse(1) > 0) {
-                                for (Unit unit : gameState.getUnits()) {
-                                    if (unit.getUnitType() != UnitType.KNIGHT || unit.getOwner() != Owner.ENEMY) {
-                                        continue;
-                                    }
-                                    if (Utils.inContact(unit.getX(),
-                                            unit.getY(),
-                                            KNIGHT_RADIUS,
-                                            touchSite.get().getX(),
-                                            touchSite.get().getY(),
-                                            touchSite.get().getRadius())) {
-                                        break break_label;
-                                    }
-                                }
+                                    && touchSite.get().getGold().orElse(1) > 0 && !queenIsUnderAttack(gameState)) {
                                 return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
                                         .setStructureType(StructureType.MINE));
                             }
@@ -392,7 +377,8 @@ class Player {
                             }
                             if (countTowers == 1 && touchSite.get().getOwner() == Owner.FRIENDLY
                                     && touchSite.get().getStructureType() == StructureType.TOWER
-                                    && touchSite.get().getTowerRange() < goal.getValue()) {
+                                    && touchSite.get().getTowerRange() < goal.getValue() && !queenIsUnderAttack(
+                                    gameState)) {
                                 return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
                                         .setStructureType(StructureType.TOWER));
                             }
@@ -402,6 +388,23 @@ class Player {
             }
 
             return Optional.empty();
+        }
+
+        private boolean queenIsUnderAttack(GameState gameState) {
+            for (Unit unit : gameState.getUnits()) {
+                if (unit.getUnitType() != UnitType.KNIGHT || unit.getOwner() != Owner.ENEMY) {
+                    continue;
+                }
+                if (Utils.inContact(unit.getX(),
+                        unit.getY(),
+                        KNIGHT_RADIUS,
+                        gameState.getMyQueen().getX(),
+                        gameState.getMyQueen().getY(),
+                        QUEEN_RADIUS)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
