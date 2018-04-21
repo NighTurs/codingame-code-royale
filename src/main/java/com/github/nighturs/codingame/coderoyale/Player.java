@@ -307,7 +307,9 @@ class Player {
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
-                        new SimpleEntry<>(BuildGoal.MINING, 10));
+                        new SimpleEntry<>(BuildGoal.MINING, 10),
+                        new SimpleEntry<>(BuildGoal.TOWER, 450),
+                        new SimpleEntry<>(BuildGoal.TOWER, 450));
 
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
