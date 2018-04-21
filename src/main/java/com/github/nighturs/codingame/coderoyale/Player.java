@@ -1,5 +1,6 @@
 package com.github.nighturs.codingame.coderoyale;
 
+import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -57,6 +58,7 @@ class Player {
                         mineGold == -1 ? Optional.empty() : Optional.of(mineGold),
                         maxMineSize == -1 ? Optional.empty() : Optional.of(maxMineSize),
                         stType == StructureType.TOWER ? param1 : 0,
+                        stType == StructureType.TOWER ? param2 : 0,
                         stType == StructureType.MINE ? param1 : 0,
                         stType == StructureType.BARRACKS ? BarracksType.fromId(param2) : BarracksType.NONE));
             }
@@ -292,11 +294,27 @@ class Player {
 
         private static final int OPTIMAL_MINE_COUNT = 3;
 
+        private enum BuildGoal {
+            MINING,
+            TOWER,
+            KNIGH_BARRACKS
+        }
+
+        private static final List<SimpleEntry<BuildGoal, Integer>> buildOrder =
+                Arrays.asList(new SimpleEntry<>(BuildGoal.MINING, 4),
+                        new SimpleEntry<>(BuildGoal.KNIGH_BARRACKS, 1),
+                        new SimpleEntry<>(BuildGoal.TOWER, 300),
+                        new SimpleEntry<>(BuildGoal.TOWER, 450),
+                        new SimpleEntry<>(BuildGoal.TOWER, 450),
+                        new SimpleEntry<>(BuildGoal.TOWER, 450),
+                        new SimpleEntry<>(BuildGoal.MINING, 10));
+
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
 
             int countKnightBarracks = 0;
-            int countMines = 0;
+            int mining = 0;
+            int countTowers = 0;
             for (BuildingSite site : gameState.getBuildingSites()) {
                 if (site.getOwner() != Owner.FRIENDLY) {
                     continue;
@@ -305,7 +323,10 @@ class Player {
                     countKnightBarracks++;
                 }
                 if (site.getStructureType() == StructureType.MINE) {
-                    countMines++;
+                    mining += site.getIncomeRate();
+                }
+                if (site.getStructureType() == StructureType.TOWER) {
+                    countTowers++;
                 }
             }
 
@@ -318,19 +339,38 @@ class Player {
                         .setStructureType(StructureType.MINE));
             }
 
-            if (touchSite.isPresent() && touchSite.get().getOwner() != Owner.FRIENDLY) {
-                if (countMines < OPTIMAL_MINE_COUNT) {
-                    return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
-                            .setStructureType(StructureType.MINE));
-                } else if (countKnightBarracks == 0) {
-                    return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
-                            .setStructureType(StructureType.BARRACKS)
-                            .setBarracksType(BarracksType.KNIGHT));
-                } else {
-                    return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
-                            .setStructureType(StructureType.TOWER));
+            if (touchSite.isPresent()) {
+                for (SimpleEntry<BuildGoal, Integer> goal : buildOrder) {
+                    switch (goal.getKey()) {
+                        case MINING:
+                            if (mining < goal.getValue() && touchSite.get().getOwner() == Owner.NONE) {
+                                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                                        .setStructureType(StructureType.MINE));
+                            }
+                            break;
+                        case KNIGH_BARRACKS:
+                            if (countKnightBarracks < goal.getValue() && touchSite.get().getOwner() == Owner.NONE) {
+                                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                                        .setStructureType(StructureType.BARRACKS)
+                                        .setBarracksType(BarracksType.KNIGHT));
+                            }
+                            break;
+                        case TOWER:
+                            if (countTowers == 0 && touchSite.get().getOwner() == Owner.NONE) {
+                                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                                        .setStructureType(StructureType.TOWER));
+                            }
+                            if (countTowers == 1 && touchSite.get().getOwner() == Owner.FRIENDLY
+                                    && touchSite.get().getStructureType() == StructureType.TOWER
+                                    && touchSite.get().getTowerRange() < goal.getValue()) {
+                                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                                        .setStructureType(StructureType.TOWER));
+                            }
+                            countTowers--;
+                    }
                 }
             }
+
             return Optional.empty();
         }
 
@@ -712,6 +752,7 @@ class Player {
         private final Optional<Integer> gold;
         private final Optional<Integer> maxMineSize;
         private final int towerHP;
+        private final int towerRange;
         private final int incomeRate;
         private final BarracksType barracksType;
 
@@ -722,6 +763,7 @@ class Player {
                                           Optional<Integer> gold,
                                           Optional<Integer> maxMineSize,
                                           int towerHP,
+                                          int towerRange,
                                           int incomeRate,
                                           BarracksType barracksType) {
             return new BuildingSite(staticInfo,
@@ -731,6 +773,7 @@ class Player {
                     gold,
                     maxMineSize,
                     towerHP,
+                    towerRange,
                     incomeRate,
                     barracksType);
         }
@@ -742,6 +785,7 @@ class Player {
                             Optional<Integer> gold,
                             Optional<Integer> maxMineSize,
                             int towerHP,
+                            int towerRange,
                             int incomeRate,
                             BarracksType barracksType) {
             this.staticInfo = staticInfo;
@@ -751,6 +795,7 @@ class Player {
             this.gold = gold;
             this.maxMineSize = maxMineSize;
             this.towerHP = towerHP;
+            this.towerRange = towerRange;
             this.incomeRate = incomeRate;
             this.barracksType = barracksType;
         }
@@ -797,6 +842,10 @@ class Player {
 
         public int getTowerHP() {
             return towerHP;
+        }
+
+        public int getTowerRange() {
+            return towerRange;
         }
 
         public BarracksType getBarracksType() {
