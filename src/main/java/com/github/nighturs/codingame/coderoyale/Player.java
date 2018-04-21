@@ -86,7 +86,7 @@ class Player {
         int priority();
     }
 
-    static class RunFromKnights implements Rule {
+    static class RunFromKnightsRule implements Rule {
 
         private static final int PANIC_MODE_DIST = 100;
         private static final int TOWER_CIRCLING_RADIUS = 100;
@@ -95,7 +95,10 @@ class Player {
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
 
-            boolean panicMode = false;
+            if (!isPanicMode(gameState)) {
+                return Optional.empty();
+            }
+
             int enemiesCount = 0;
             double sumX = 0;
             double sumY = 0;
@@ -105,15 +108,12 @@ class Player {
                 }
                 if (Utils.dist(gameState.getMyQueen().getX(), gameState.getMyQueen().getY(), unit.getX(), unit.getY())
                         < PANIC_MODE_DIST) {
-                    panicMode = true;
                     enemiesCount++;
                     sumX += unit.getX();
                     sumY += unit.getY();
                 }
             }
-            if (!panicMode) {
-                return Optional.empty();
-            }
+
             double enemyCenterX = sumX / enemiesCount;
             double enemyCenterY = sumY / enemiesCount;
 
@@ -164,6 +164,19 @@ class Player {
             targetX += targetTowerX;
             targetY += targetTowerY;
             return Optional.of(new MoveBuilder().setX((int) targetX).setY((int) targetY));
+        }
+
+        public static boolean isPanicMode(GameState gameState) {
+            for (Unit unit : gameState.getUnits()) {
+                if (unit.getOwner() != Owner.ENEMY || unit.getUnitType() != UnitType.KNIGHT) {
+                    continue;
+                }
+                if (Utils.dist(gameState.getMyQueen().getX(), gameState.getMyQueen().getY(), unit.getX(), unit.getY())
+                        < PANIC_MODE_DIST) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -304,8 +317,6 @@ class Player {
 
     static class BuildStructureRule implements Rule {
 
-        private static final int OPTIMAL_MINE_COUNT = 3;
-
         private enum BuildGoal {
             MINING,
             TOWER,
@@ -358,7 +369,8 @@ class Player {
                     switch (goal.getKey()) {
                         case MINING:
                             if (mining < goal.getValue() && touchSite.get().getOwner() == Owner.NONE
-                                    && touchSite.get().getGold().orElse(1) > 0 && !queenIsUnderAttack(gameState)) {
+                                    && touchSite.get().getGold().orElse(1) > 0 && !RunFromKnightsRule.isPanicMode(
+                                    gameState)) {
                                 return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
                                         .setStructureType(StructureType.MINE));
                             }
@@ -377,8 +389,8 @@ class Player {
                             }
                             if (countTowers == 1 && touchSite.get().getOwner() == Owner.FRIENDLY
                                     && touchSite.get().getStructureType() == StructureType.TOWER
-                                    && touchSite.get().getTowerRange() < goal.getValue() && !queenIsUnderAttack(
-                                    gameState)) {
+                                    && touchSite.get().getTowerRange() < goal.getValue()
+                                    && !RunFromKnightsRule.isPanicMode(gameState)) {
                                 return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
                                         .setStructureType(StructureType.TOWER));
                             }
@@ -388,23 +400,6 @@ class Player {
             }
 
             return Optional.empty();
-        }
-
-        private boolean queenIsUnderAttack(GameState gameState) {
-            for (Unit unit : gameState.getUnits()) {
-                if (unit.getUnitType() != UnitType.KNIGHT || unit.getOwner() != Owner.ENEMY) {
-                    continue;
-                }
-                if (Utils.inContact(unit.getX(),
-                        unit.getY(),
-                        KNIGHT_RADIUS,
-                        gameState.getMyQueen().getX(),
-                        gameState.getMyQueen().getY(),
-                        QUEEN_RADIUS)) {
-                    return true;
-                }
-            }
-            return false;
         }
 
         @Override
@@ -464,7 +459,7 @@ class Player {
 
         public static Move findMove(GameState gameState) {
             List<Rule> queenRules =
-                    Arrays.asList(new GoToNewSiteRule(), new BuildStructureRule(), new RunFromKnights());
+                    Arrays.asList(new GoToNewSiteRule(), new BuildStructureRule(), new RunFromKnightsRule());
             Optional<MoveBuilder> queenMoveOpt = bestPriorityMove(gameState, queenRules);
             List<Rule> structureRules = Arrays.asList(new TrainUnitsRule());
             Optional<MoveBuilder> structureMoveOpt = bestPriorityMove(gameState, structureRules);
