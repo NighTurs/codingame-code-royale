@@ -324,10 +324,11 @@ class Player {
 
         private static final List<SimpleEntry<BuildGoal, Integer>> buildOrder =
                 Arrays.asList(new SimpleEntry<>(BuildGoal.MINING, 4),
+                        new SimpleEntry<>(BuildGoal.KNIGH_BARRACKS, 1),
                         new SimpleEntry<>(BuildGoal.TOWER, 330),
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
-                        new SimpleEntry<>(BuildGoal.TOWER, 450),
                         new SimpleEntry<>(BuildGoal.KNIGH_BARRACKS, 2),
+                        new SimpleEntry<>(BuildGoal.TOWER, 450),
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
                         new SimpleEntry<>(BuildGoal.MINING, 10),
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
