@@ -21,6 +21,7 @@ class Player {
     static final int QUEEN_SPEED = 60;
     static final int CONTACT_RANGE = 5;
     static final int QUEEN_RADIUS = 30;
+    static final int KNIGHT_RADIUS = 20;
 
     public static void main(String[] args) {
         Scanner in = new Scanner(System.in);
@@ -354,10 +355,25 @@ class Player {
 
             if (touchSite.isPresent()) {
                 for (SimpleEntry<BuildGoal, Integer> goal : buildOrder) {
+                    break_label:
                     switch (goal.getKey()) {
                         case MINING:
+
                             if (mining < goal.getValue() && touchSite.get().getOwner() == Owner.NONE
                                     && touchSite.get().getGold().orElse(1) > 0) {
+                                for (Unit unit : gameState.getUnits()) {
+                                    if (unit.getUnitType() != UnitType.KNIGHT || unit.getOwner() != Owner.ENEMY) {
+                                        continue;
+                                    }
+                                    if (Utils.inContact(unit.getX(),
+                                            unit.getY(),
+                                            KNIGHT_RADIUS,
+                                            touchSite.get().getX(),
+                                            touchSite.get().getY(),
+                                            touchSite.get().getRadius())) {
+                                        break break_label;
+                                    }
+                                }
                                 return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
                                         .setStructureType(StructureType.MINE));
                             }
