@@ -184,7 +184,8 @@ class Player {
             double dist = Double.MAX_VALUE;
             BuildingSite nearestSite = null;
             for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getOwner() == Owner.FRIENDLY || site.getStructureType() == StructureType.TOWER) {
+                if (site.getOwner() == Owner.FRIENDLY || site.getStructureType() == StructureType.TOWER
+                        || site.getGold().orElse(1) == 0) {
                     continue;
                 }
                 double curDist = Utils.dist(site.getX(),
