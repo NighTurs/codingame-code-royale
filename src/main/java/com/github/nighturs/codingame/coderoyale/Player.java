@@ -183,11 +183,21 @@ class Player {
             // Find nearest vacant building site
             double dist = Double.MAX_VALUE;
             BuildingSite nearestSite = null;
+            outer_loop:
             for (BuildingSite site : gameState.getBuildingSites()) {
                 if (site.getOwner() == Owner.FRIENDLY || site.getStructureType() == StructureType.TOWER
                         || site.getGold().orElse(1) == 0) {
                     continue;
                 }
+                for (BuildingSite siteB : gameState.getBuildingSites()) {
+                    if (siteB.getOwner() != Owner.ENEMY || siteB.getStructureType() != StructureType.TOWER) {
+                        continue;
+                    }
+                    if (Utils.dist(site.getX(), site.getY(), siteB.getX(), siteB.getY()) <= siteB.getTowerRange()) {
+                        continue outer_loop;
+                    }
+                }
+
                 double curDist = Utils.dist(site.getX(),
                         site.getY(),
                         gameState.getMyQueen().getX(),
