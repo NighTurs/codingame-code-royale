@@ -89,7 +89,6 @@ class Player {
     static class RunFromKnightsRule implements Rule {
 
         private static final int PANIC_MODE_DIST = 300;
-        private static final int TOWER_CIRCLING_RADIUS = 100;
 
         @SuppressWarnings("SuspiciousNameCombination")
         @Override
@@ -144,7 +143,7 @@ class Player {
             double targetTowerY = targetTower.getY();
             double queenX = gameState.getMyQueen().getX() - targetTowerX;
             double queenY = gameState.getMyQueen().getY() - targetTowerY;
-            double k = TOWER_CIRCLING_RADIUS / Utils.dist(0, 0, queenX, queenY);
+            double k = (targetTower.getRadius() + QUEEN_RADIUS) / Utils.dist(0, 0, queenX, queenY);
             queenX = queenX * k;
             queenY = queenY * k;
             enemyCenterX = enemyCenterX - targetTowerX;
