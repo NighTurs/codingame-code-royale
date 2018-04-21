@@ -17,6 +17,9 @@ class Player {
     static final int ARCHER_COST = 100;
     static final int GRID_WIDTH = 1920;
     static final int GRID_HEIGHT = 1000;
+    static final int QUEEN_SPEED = 60;
+    static final int CONTACT_RANGE = 5;
+    static final int QUEEN_RADIUS = 30;
 
     public static void main(String[] args) {
         Scanner in = new Scanner(System.in);
@@ -174,6 +177,8 @@ class Player {
                     && gameState.getTouchedSiteOpt().get().getOwner() != Owner.FRIENDLY) {
                 return Optional.empty();
             }
+
+            // Find nearest vacant building site
             double dist = Double.MAX_VALUE;
             BuildingSite nearestSite = null;
             for (BuildingSite site : gameState.getBuildingSites()) {
@@ -189,10 +194,92 @@ class Player {
                     nearestSite = site;
                 }
             }
-            if (nearestSite != null) {
+            if (nearestSite == null) {
+                return Optional.empty();
+            }
+
+            // Find if it is possible to approach in one turn and make next vacant site less far away
+            int queenX = gameState.getMyQueen().getX();
+            int queenY = gameState.getMyQueen().getY();
+
+            double bestFuture = Double.MAX_VALUE;
+            int moveX = 0;
+            int moveY = 0;
+            for (int x1 = -QUEEN_SPEED; x1 <= QUEEN_SPEED; x1++) {
+                for (int y1 = -QUEEN_SPEED; y1 <= QUEEN_SPEED; y1++) {
+                    int newX = queenX + x1;
+                    int newY = queenY + y1;
+                    if (newX < 0 || newX > GRID_WIDTH || newY < 0 || newY > GRID_HEIGHT) {
+                        continue;
+                    }
+                    double d = Utils.dist(queenX, queenY, newX, newY);
+                    if (d > QUEEN_SPEED) {
+                        continue;
+                    }
+                    if (!Utils.inContact(newX,
+                            newY,
+                            QUEEN_RADIUS,
+                            nearestSite.getX(),
+                            nearestSite.getY(),
+                            nearestSite.getRadius())) {
+                        continue;
+                    }
+                    double closestSite = Double.MAX_VALUE - 1;
+                    for (BuildingSite site : gameState.getBuildingSites()) {
+                        if (site.getOwner() == Owner.FRIENDLY || site.getStructureType() == StructureType.TOWER
+                                || site.getId() == nearestSite.getId()) {
+                            continue;
+                        }
+                        double nextD = Utils.dist(newX, newY, site.getX(), site.getY());
+                        if (closestSite > nextD) {
+                            closestSite = nextD;
+                        }
+                    }
+                    if (closestSite < bestFuture) {
+                        bestFuture = closestSite;
+                        moveX = newX;
+                        moveY = newY;
+                    }
+                }
+            }
+
+            if (moveX != 0 && moveY != 0) {
+                return Optional.of(new MoveBuilder().setX(moveX).setY(moveY));
+            }
+
+            // Find approach point considering future vacant building sites
+            double wiseX = -1;
+            double wiseY = -1;
+            double minDist = Double.MAX_VALUE;
+            for (BuildingSite site : gameState.getBuildingSites()) {
+                if (site.getOwner() == Owner.FRIENDLY || site.getStructureType() == StructureType.TOWER
+                        || site.getId() == nearestSite.getId()) {
+                    continue;
+                }
+                double turnX = site.getX() - nearestSite.getX();
+                double turnY = site.getY() - nearestSite.getY();
+                double k = (nearestSite.getRadius() + QUEEN_RADIUS) / Utils.dist(site.getX(),
+                        site.getY(),
+                        nearestSite.getX(),
+                        nearestSite.getY());
+                turnX = (turnX * k) + nearestSite.getX();
+                turnY = (turnY * k) + nearestSite.getY();
+
+                double siteD =
+                        Utils.dist(queenX, queenY, turnX, turnY) + Utils.dist(turnX, turnY, site.getX(), site.getY());
+                if (siteD < minDist) {
+                    minDist = siteD;
+                    wiseX = turnX;
+                    wiseY = turnY;
+                }
+            }
+
+            //noinspection FloatingPointEquality
+            if (minDist == Double.MAX_VALUE) {
                 return Optional.of(new MoveBuilder().setX(nearestSite.getX()).setY(nearestSite.getY()));
             }
-            return Optional.empty();
+
+            return Optional.of(new MoveBuilder().setX((int) wiseX).setY((int) wiseY));
         }
 
         @Override
@@ -382,6 +469,10 @@ class Player {
     }
 
     static class Utils {
+
+        public static boolean inContact(int x1, int y1, int r1, int x2, int y2, int r2) {
+            return dist(x1, y1, x2, y2) - r1 - r2 < CONTACT_RANGE;
+        }
 
         public static double dist(int x1, int y1, int x2, int y2) {
             return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
