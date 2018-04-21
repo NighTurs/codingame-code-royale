@@ -314,10 +314,10 @@ class Player {
 
         private static final List<SimpleEntry<BuildGoal, Integer>> buildOrder =
                 Arrays.asList(new SimpleEntry<>(BuildGoal.MINING, 4),
-                        new SimpleEntry<>(BuildGoal.KNIGH_BARRACKS, 1),
-                        new SimpleEntry<>(BuildGoal.TOWER, 300),
+                        new SimpleEntry<>(BuildGoal.TOWER, 330),
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
+                        new SimpleEntry<>(BuildGoal.KNIGH_BARRACKS, 2),
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
                         new SimpleEntry<>(BuildGoal.MINING, 10),
                         new SimpleEntry<>(BuildGoal.TOWER, 450),
@@ -416,14 +416,16 @@ class Player {
         public Optional<MoveBuilder> makeMove(GameState gameState) {
             List<Integer> trainSites = new ArrayList<>();
             int gold = gameState.getGoldLeft();
+            if (gold < KNIGHT_COST * 2) {
+                return Optional.empty();
+            }
             for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getOwner() != Owner.FRIENDLY || site.getStructureType() != StructureType.BARRACKS
+                if (site.getOwner() != Owner.FRIENDLY || site.getBarracksType() != BarracksType.KNIGHT
                         || site.getUntilTrain() > 0) {
                     continue;
                 }
-                int cost = site.getBarracksType() == BarracksType.ARCHER ? ARCHER_COST : KNIGHT_COST;
-                if (gold >= cost) {
-                    gold -= cost;
+                if (gold >= KNIGHT_COST) {
+                    gold -= KNIGHT_COST;
                     trainSites.add(site.getId());
                 }
             }
