@@ -343,7 +343,8 @@ class Player {
                 for (SimpleEntry<BuildGoal, Integer> goal : buildOrder) {
                     switch (goal.getKey()) {
                         case MINING:
-                            if (mining < goal.getValue() && touchSite.get().getOwner() == Owner.NONE) {
+                            if (mining < goal.getValue() && touchSite.get().getOwner() == Owner.NONE
+                                    && touchSite.get().getGold().orElse(1) > 0) {
                                 return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
                                         .setStructureType(StructureType.MINE));
                             }
