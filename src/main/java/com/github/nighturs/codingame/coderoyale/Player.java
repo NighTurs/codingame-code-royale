@@ -4,6 +4,7 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -186,126 +187,219 @@ class Player {
 
     static class GoToNewSiteRule implements Rule {
 
-        @Override
-        public Optional<MoveBuilder> makeMove(GameState gameState) {
-            if (gameState.getTouchedSiteOpt().isPresent()
-                    && gameState.getTouchedSiteOpt().get().getOwner() != Owner.FRIENDLY) {
-                return Optional.empty();
+        private static class Path {
+
+            private final double dist;
+            private final int stepX, stepY;
+
+            public Path(double dist, int stepX, int stepY) {
+                this.dist = dist;
+                this.stepX = stepX;
+                this.stepY = stepY;
             }
 
-            // Find nearest vacant building site
-            double dist = Double.MAX_VALUE;
-            BuildingSite nearestSite = null;
-            outer_loop:
+            public double getDist() {
+                return dist;
+            }
+
+            public int getStepX() {
+                return stepX;
+            }
+
+            public int getStepY() {
+                return stepY;
+            }
+        }
+
+        private Path findPath(int curX,
+                              int curY,
+                              BuildingSite firstSite,
+                              @SuppressWarnings("OptionalUsedAsFieldOrParameterType") Optional<BuildingSite> secondSite,
+                              GameState gameState) {
+
+            // Search for obstacles in straight line path
+            double obstDist = Double.MAX_VALUE;
+            BuildingSite obstSite = null;
             for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getOwner() == Owner.FRIENDLY || site.getStructureType() == StructureType.TOWER
-                        || site.getGold().orElse(1) == 0) {
+                if (site.getId() == firstSite.getId()) {
                     continue;
                 }
-                for (BuildingSite siteB : gameState.getBuildingSites()) {
-                    if (siteB.getOwner() != Owner.ENEMY || siteB.getStructureType() != StructureType.TOWER) {
-                        continue;
-                    }
-                    if (Utils.dist(site.getX(), site.getY(), siteB.getX(), siteB.getY()) <= siteB.getTowerRange()) {
-                        continue outer_loop;
-                    }
-                }
-
-                double curDist = Utils.dist(site.getX(),
+                double dist = Utils.dist(curX, curY, site.getX(), site.getY());
+                if (Utils.isObstackle(curX,
+                        curY,
+                        firstSite.getX(),
+                        firstSite.getY(),
+                        site.getX(),
                         site.getY(),
-                        gameState.getMyQueen().getX(),
-                        gameState.getMyQueen().getY());
-                if (curDist < dist) {
-                    dist = curDist;
-                    nearestSite = site;
+                        site.getRadius() + QUEEN_RADIUS) && obstDist > dist) {
+                    obstDist = dist;
+                    obstSite = site;
                 }
             }
-            if (nearestSite == null) {
-                return Optional.empty();
+            if (obstSite != null) {
+                double centCurX = curX - obstSite.getX();
+                double centCurY = curY - obstSite.getY();
+                double k = (obstSite.getRadius() + QUEEN_RADIUS) / obstDist;
+                centCurX *= k;
+                centCurY *= k;
+
+                int newX;
+                int newY;
+                //noinspection SuspiciousNameCombination
+                if (Utils.dist(-centCurY,
+                        centCurX,
+                        firstSite.getX() - obstSite.getX(),
+                        firstSite.getY() - obstSite.getY()) > Utils.dist(centCurY,
+                        -centCurX,
+                        firstSite.getX() - obstSite.getX(),
+                        firstSite.getY() - obstSite.getY())) {
+                    newX = (int) (centCurY + obstSite.getX());
+                    newY = (int) (-centCurX + obstSite.getY());
+                } else {
+                    newX = (int) (-centCurY + obstSite.getX());
+                    newY = (int) (centCurX + obstSite.getY());
+                }
+                Path path = findPath(newX, newY, firstSite, secondSite, gameState);
+                return new Path(path.getDist() + Utils.dist(curX, curY, newX, newY), newX, newY);
             }
 
             // Find if it is possible to approach in one turn and make next vacant site less far away
-            int queenX = gameState.getMyQueen().getX();
-            int queenY = gameState.getMyQueen().getY();
-
             double bestFuture = Double.MAX_VALUE;
-            int moveX = 0;
-            int moveY = 0;
+            int moveX = -1;
+            int moveY = -1;
             for (int x1 = -QUEEN_SPEED; x1 <= QUEEN_SPEED; x1++) {
                 for (int y1 = -QUEEN_SPEED; y1 <= QUEEN_SPEED; y1++) {
-                    int newX = queenX + x1;
-                    int newY = queenY + y1;
+                    int newX = curX + x1;
+                    int newY = curY + y1;
                     if (newX < 0 || newX > GRID_WIDTH || newY < 0 || newY > GRID_HEIGHT) {
                         continue;
                     }
-                    double d = Utils.dist(queenX, queenY, newX, newY);
+                    double d = Utils.dist(curX, curY, newX, newY);
                     if (d > QUEEN_SPEED) {
                         continue;
                     }
                     if (!Utils.inContact(newX,
                             newY,
                             QUEEN_RADIUS,
-                            nearestSite.getX(),
-                            nearestSite.getY(),
-                            nearestSite.getRadius())) {
+                            firstSite.getX(),
+                            firstSite.getY(),
+                            firstSite.getRadius())) {
                         continue;
                     }
-                    double closestSite = Double.MAX_VALUE - 1;
-                    for (BuildingSite site : gameState.getBuildingSites()) {
-                        if (site.getOwner() == Owner.FRIENDLY || site.getStructureType() == StructureType.TOWER
-                                || site.getId() == nearestSite.getId()) {
-                            continue;
-                        }
-                        double nextD = Utils.dist(newX, newY, site.getX(), site.getY());
-                        if (closestSite > nextD) {
-                            closestSite = nextD;
-                        }
-                    }
-                    if (closestSite < bestFuture) {
-                        bestFuture = closestSite;
+
+                    double secondDist = Utils.dist(newX,
+                            newY,
+                            secondSite.map(BuildingSite::getX).orElse(gameState.getMyCornerX()),
+                            secondSite.map(BuildingSite::getY).orElse(gameState.getMycornerY())) - secondSite.map(
+                            BuildingSite::getRadius).orElse(0) - QUEEN_RADIUS - CONTACT_RANGE;
+
+                    if (secondDist < bestFuture) {
+                        bestFuture = secondDist;
                         moveX = newX;
                         moveY = newY;
                     }
                 }
             }
-
-            if (moveX != 0 && moveY != 0) {
-                return Optional.of(new MoveBuilder().setX(moveX).setY(moveY));
+            if (moveX != -1) {
+                return new Path(QUEEN_SPEED + bestFuture, moveX, moveY);
             }
 
-            // Find approach point considering future vacant building sites
-            double wiseX = -1;
-            double wiseY = -1;
-            double minDist = Double.MAX_VALUE;
+            if (!secondSite.isPresent()) {
+                return new Path(Utils.dist(curX, curY, firstSite.getX(), firstSite.getY()) - firstSite.getRadius()
+                        - QUEEN_RADIUS - CONTACT_RANGE, firstSite.getX(), firstSite.getY());
+            }
+
+            // If first site is on the way to second, then find path directly to second site
+            if (Utils.isObstackle(curX,
+                    curY,
+                    secondSite.get().getX(),
+                    secondSite.get().getY(),
+                    firstSite.getX(),
+                    firstSite.getY(),
+                    firstSite.getRadius() + QUEEN_RADIUS)) {
+                return findPath(curX, curY, secondSite.get(), Optional.empty(), gameState);
+            }
+
+            double turnX = secondSite.get().getX() - firstSite.getX();
+            double turnY = secondSite.get().getY() - firstSite.getY();
+            double k = (firstSite.getRadius() + QUEEN_RADIUS) / Utils.dist(secondSite.get().getX(),
+                    secondSite.get().getY(),
+                    firstSite.getX(),
+                    firstSite.getY());
+            turnX = (turnX * k) + firstSite.getX();
+            turnY = (turnY * k) + firstSite.getY();
+
+            return new Path(Utils.dist(curX, curY, turnX, turnY) + Utils.dist(turnX,
+                    turnY,
+                    secondSite.get().getX(),
+                    secondSite.get().getY()) - secondSite.get().getRadius() - QUEEN_RADIUS - CONTACT_RANGE,
+                    (int) turnX,
+                    (int) turnY);
+        }
+
+        @Override
+        public Optional<MoveBuilder> makeMove(GameState gameState) {
+            if (gameState.getTouchedSiteOpt().isPresent()
+                    && gameState.getTouchedSiteOpt().get().getOwner() != Owner.FRIENDLY) {
+                return Optional.empty();
+            }
+            List<BuildingSite> vacantSites = new ArrayList<>();
             for (BuildingSite site : gameState.getBuildingSites()) {
                 if (site.getOwner() == Owner.FRIENDLY || site.getStructureType() == StructureType.TOWER
-                        || site.getId() == nearestSite.getId()) {
+                        || site.getGold().orElse(1) == 0) {
                     continue;
                 }
-                double turnX = site.getX() - nearestSite.getX();
-                double turnY = site.getY() - nearestSite.getY();
-                double k = (nearestSite.getRadius() + QUEEN_RADIUS) / Utils.dist(site.getX(),
-                        site.getY(),
-                        nearestSite.getX(),
-                        nearestSite.getY());
-                turnX = (turnX * k) + nearestSite.getX();
-                turnY = (turnY * k) + nearestSite.getY();
-
-                double siteD =
-                        Utils.dist(queenX, queenY, turnX, turnY) + Utils.dist(turnX, turnY, site.getX(), site.getY());
-                if (siteD < minDist) {
-                    minDist = siteD;
-                    wiseX = turnX;
-                    wiseY = turnY;
+                boolean inEnemyTowerRange = false;
+                for (BuildingSite siteB : gameState.getBuildingSites()) {
+                    if (siteB.getOwner() != Owner.ENEMY || siteB.getStructureType() != StructureType.TOWER) {
+                        continue;
+                    }
+                    if (Utils.dist(site.getX(), site.getY(), siteB.getX(), siteB.getY()) <= siteB.getTowerRange()) {
+                        inEnemyTowerRange = true;
+                    }
+                }
+                if (!inEnemyTowerRange) {
+                    vacantSites.add(site);
                 }
             }
+            Unit myQueen = gameState.getMyQueen();
 
-            //noinspection FloatingPointEquality
-            if (minDist == Double.MAX_VALUE) {
-                return Optional.of(new MoveBuilder().setX(nearestSite.getX()).setY(nearestSite.getY()));
+            vacantSites.sort(Comparator.comparingDouble(a -> Utils.dist(a.getX(),
+                    a.getY(),
+                    myQueen.getX(),
+                    myQueen.getY())));
+
+            if (vacantSites.isEmpty()) {
+                return Optional.empty();
             }
 
-            return Optional.of(new MoveBuilder().setX((int) wiseX).setY((int) wiseY));
+            if (vacantSites.size() == 1) {
+                Path path = findPath(myQueen.getX(), myQueen.getY(), vacantSites.get(0), Optional.empty(), gameState);
+                return Optional.of(new MoveBuilder().setX(path.getStepX()).setY(path.getStepY()));
+            }
+
+            double minDist = Double.MAX_VALUE;
+            int moveX = 0;
+            int moveY = 0;
+            for (int i = 0; i < Math.min(vacantSites.size(), 2); i++) {
+                for (int h = i + 1; h < Math.min(vacantSites.size(), 5); h++) {
+                    Path path = findPath(myQueen.getX(),
+                            myQueen.getY(),
+                            vacantSites.get(i),
+                            Optional.of(vacantSites.get(h)),
+                            gameState);
+                    if (path.getDist() < minDist) {
+                        minDist = path.getDist();
+                        moveX = path.getStepX();
+                        moveY = path.getStepY();
+                    }
+                }
+            }
+            //noinspection FloatingPointEquality
+            if (minDist == Double.MAX_VALUE) {
+                throw new RuntimeException("Path finder didn't work correctely");
+            }
+            return Optional.of(new MoveBuilder().setX(moveX).setY(moveY));
         }
 
         @Override
@@ -481,6 +575,8 @@ class Player {
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private Optional<BuildingSite> touchedSiteOpt;
         private Unit myQueen;
+        private int myCornerX = -1;
+        private int mycornerY = -1;
 
         public static GameState create(List<BuildingSiteStatic> buildingSiteStatics) {
             return new GameState(buildingSiteStatics);
@@ -520,6 +616,14 @@ class Player {
             return myQueen;
         }
 
+        public int getMyCornerX() {
+            return myCornerX;
+        }
+
+        public int getMycornerY() {
+            return mycornerY;
+        }
+
         public void initTurn(int gold,
                              int touchedSite,
                              @SuppressWarnings("ParameterHidesMemberVariable") List<BuildingSite> buildingSites,
@@ -535,6 +639,15 @@ class Player {
                     .filter(x -> x.getOwner() == Owner.FRIENDLY && x.getUnitType() == UnitType.QUEEN)
                     .findFirst()
                     .get();
+            if (myCornerX == -1) {
+                if (myQueen.getX() < GRID_WIDTH / 2) {
+                    myCornerX = 0;
+                    mycornerY = 0;
+                } else {
+                    myCornerX = GRID_WIDTH;
+                    mycornerY = GRID_HEIGHT;
+                }
+            }
         }
     }
 
@@ -550,6 +663,30 @@ class Player {
 
         public static double dist(double x1, double y1, double x2, double y2) {
             return Math.sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
+        }
+
+        public static boolean isProjectedPointOnLineSegment(int x1, int y1, int x2, int y2, int x0, int y0) {
+            int e1x = x2 - x1;
+            int e1y = y2 - y1;
+            int recArea = e1x * e1x + e1y * e1y;
+            int e2x = x0 - x1;
+            int e2y = y0 - y1;
+            double val = e1x * e2x + e1y * e2y;
+            return (val > 0 && val < recArea);
+        }
+
+        public static double distLinePoint(double x1, double y1, double x2, double y2, double x0, double y0) {
+            return Math.abs((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1) / Math.sqrt(
+                    (y2 - y1) * (y2 - y1) + (x2 - x1) * (x2 - x1));
+        }
+
+        public static boolean isObstackle(int x1, int y1, int x2, int y2, int x0, int y0, int radius) {
+            return distLinePoint(x1, y1, x2, y2, x0, y0) < radius && isProjectedPointOnLineSegment(x1,
+                    y1,
+                    x2,
+                    y2,
+                    x0,
+                    y0);
         }
     }
 
