@@ -546,18 +546,6 @@ class Player {
                         closestEnemyBarracks.map(BuildingSite::getX).orElse(closestEnemyKnight.get().getX()),
                         closestEnemyBarracks.map(BuildingSite::getY).orElse(closestEnemyKnight.get().getY()),
                         null) < COMFORT_TOWERS_NUMBER) {
-                    System.err.println(String.format("Decision name=%s, id=%d, kbonus=%f, tonpath=%d",
-                            "MineToTower",
-                            site.getId(),
-                            enemyKnightsBonus,
-                            towersOnPath(gameState,
-                                    gameState.getMyQueen().getX(),
-                                    gameState.getMyQueen().getY(),
-                                    closestEnemyBarracks.map(BuildingSite::getX)
-                                            .orElse(closestEnemyKnight.get().getX()),
-                                    closestEnemyBarracks.map(BuildingSite::getY)
-                                            .orElse(closestEnemyKnight.get().getY()),
-                                    null)));
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 }
             }
@@ -578,10 +566,6 @@ class Player {
             if (site.getStructureType() == StructureType.TOWER) {
                 // Integer division intended
                 if ((MAX_TOWER_HP - site.getTowerHP()) / QUEEN_TOWER_UP > 2 && !uselessTower) {
-                    System.err.println(String.format("Decision name=%s, id=%d, hpcheck=%d",
-                            "BoostTower",
-                            site.getId(),
-                            (MAX_TOWER_HP - site.getTowerHP()) / QUEEN_TOWER_UP));
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 }
             }
@@ -594,18 +578,10 @@ class Player {
             if (site.getStructureType() == StructureType.NONE || uselessBarracks || uselessTower) {
                 //noinspection IfStatementWithIdenticalBranches
                 if (myBarracksCount == 0 && site.getMaxMineSize().orElse(2) == 1) {
-                    System.err.println(String.format("Decision name=%s, id=%d, mineS=%d",
-                            "ShallowMine",
-                            site.getId(),
-                            site.getMaxMineSize().orElse(2)));
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
                             distToEnemyQueen / 4 + enemyKnightsBonus));
                 } else if (myBarracksCount == 0 && myMinesCount >= 2) {
-                    System.err.println(String.format("Decision name=%s, id=%d, mineC=%d",
-                            "NeedBarracks",
-                            site.getId(),
-                            myMinesCount));
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
                             distToEnemyQueen / 4 + enemyKnightsBonus));
@@ -616,42 +592,27 @@ class Player {
                                 closestEnemyBarracks.get().getX(),
                                 closestEnemyBarracks.get().getY(),
                                 null) < COMFORT_TOWERS_NUMBER) {
-                    System.err.println(String.format("Decision name=%s, id=%d, tPath=%d",
-                            "EnemyHazzard",
-                            site.getId(),
-                            towersOnPath(gameState,
-                                    gameState.getMyQueen().getX(),
-                                    gameState.getMyQueen().getY(),
-                                    closestEnemyBarracks.get().getX(),
-                                    closestEnemyBarracks.get().getY(),
-                                    null)));
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 } else if (RunFromKnightsRule.isPanicMode(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
-                } else if (myBarracksCount > 0 && myGiantCount == 0 && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST) {
+                } else if (myBarracksCount > 0 && myGiantCount == 0
+                        && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.GIANT,
                             0 + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myBarracksDistToEnemyQueen.isPresent()
                         && myBarracksDistToEnemyQueen.get() - distToEnemyQueen >= BARRACKS_REPLACEMENT_THRESHOLD_DIST) {
-                    System.err.println(String.format("Decision name=%s, id=%d, bD=%f",
-                            "ReplaceBarrack",
-                            site.getId(),
-                            myBarracksDistToEnemyQueen.get() - distToEnemyQueen));
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
                             distToEnemyQueen / 4 + enemyKnightsBonus));
                 } else if (site.getGold().orElse(1) > 0) {
-                    System.err.println(String.format("Decision name=%s, id=%d", "PlaceMine", site.getId()));
                     return Optional.of(new BuildingDecision(StructureType.MINE,
                             null,
                             (site.getMaxMineSize().orElse(1) - 1) * QUEEN_SPEED + enemyKnightsBonus));
                 } else {
-                    System.err.println(String.format("Decision name=%s, id=%d", "DefaultTower", site.getId()));
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 }
             }
-            System.err.println(String.format("Decision name=%s, id=%d", "Nothing", site.getId()));
             return Optional.empty();
         }
 
