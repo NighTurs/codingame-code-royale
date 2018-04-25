@@ -122,27 +122,39 @@ class Player {
             double enemyCenterX = sumX / enemiesCount;
             double enemyCenterY = sumY / enemiesCount;
 
-            double minCumDist = Double.MAX_VALUE;
+            double maxDist = Double.MIN_VALUE;
             BuildingSite targetTower = null;
-            for (BuildingSite siteA : gameState.getBuildingSites()) {
-                if (siteA.getOwner() != Owner.FRIENDLY || siteA.getStructureType() != StructureType.TOWER) {
+            Optional<BuildingSite> enemyOrigin = BuildStructureRule.closestToStructure(StructureType.BARRACKS,
+                    BarracksType.KNIGHT,
+                    Owner.ENEMY,
+                    gameState.getMyQueen().getX(),
+                    gameState.getMyQueen().getY(),
+                    gameState);
+            Unit enemyQueen = gameState.getEnemyQueen();
+            for (BuildingSite site : gameState.getBuildingSites()) {
+                if (site.getOwner() != Owner.FRIENDLY || site.getStructureType() != StructureType.TOWER) {
                     continue;
                 }
-                double sumDist = 0;
-                for (BuildingSite siteB : gameState.getBuildingSites()) {
-                    if (siteB.getOwner() != Owner.FRIENDLY || siteB.getStructureType() != StructureType.TOWER
-                            || siteA.getId() == siteB.getId()) {
-                        continue;
-                    }
-                    sumDist += Utils.dist(siteA.getX(), siteA.getY(), siteB.getX(), siteB.getY());
-                }
-                if (minCumDist > sumDist) {
-                    minCumDist = sumDist;
-                    targetTower = siteA;
+                double dist = Utils.dist(enemyOrigin.map(BuildingSite::getX).orElse(enemyQueen.getX()),
+                        enemyOrigin.map(BuildingSite::getY).orElse(enemyQueen.getY()),
+                        site.getX(),
+                        site.getY());
+                if (maxDist < dist) {
+                    maxDist = dist;
+                    targetTower = site;
                 }
             }
             if (targetTower == null) {
                 return Optional.empty();
+            }
+
+            GoToNewSiteRule.Path path = GoToNewSiteRule.findPath(gameState.getMyQueen().getX(),
+                    gameState.getMyQueen().getY(),
+                    targetTower,
+                    Optional.empty(),
+                    gameState);
+            if (path.isGoingRound()) {
+                return Optional.of(new MoveBuilder().setX(path.getStepX()).setY(path.getStepY()));
             }
 
             double targetTowerX = targetTower.getX();
@@ -196,11 +208,13 @@ class Player {
 
             private final double dist;
             private final int stepX, stepY;
+            private final boolean goingRound;
 
-            public Path(double dist, int stepX, int stepY) {
+            public Path(double dist, int stepX, int stepY, boolean goingRound) {
                 this.dist = dist;
                 this.stepX = stepX;
                 this.stepY = stepY;
+                this.goingRound = goingRound;
             }
 
             public double getDist() {
@@ -214,13 +228,18 @@ class Player {
             public int getStepY() {
                 return stepY;
             }
+
+            public boolean isGoingRound() {
+                return goingRound;
+            }
         }
 
-        private Path findPath(int curX,
-                              int curY,
-                              BuildingSite firstSite,
-                              @SuppressWarnings("OptionalUsedAsFieldOrParameterType") Optional<BuildingSite> secondSite,
-                              GameState gameState) {
+        public static Path findPath(int curX,
+                                    int curY,
+                                    BuildingSite firstSite,
+                                    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+                                            Optional<BuildingSite> secondSite,
+                                    GameState gameState) {
 
             // Search for obstacles in straight line path
             double obstDist = Double.MAX_VALUE;
@@ -265,7 +284,7 @@ class Player {
                     newY = (int) (centCurX + obstSite.getY());
                 }
                 Path path = findPath(newX, newY, firstSite, secondSite, gameState);
-                return new Path(path.getDist() + Utils.dist(curX, curY, newX, newY), newX, newY);
+                return new Path(path.getDist() + Utils.dist(curX, curY, newX, newY), newX, newY, true);
             }
 
             // Find if it is possible to approach in one turn and make next vacant site less far away
@@ -306,12 +325,12 @@ class Player {
                 }
             }
             if (moveX != -1) {
-                return new Path(QUEEN_SPEED + bestFuture, moveX, moveY);
+                return new Path(QUEEN_SPEED + bestFuture, moveX, moveY, false);
             }
 
             if (!secondSite.isPresent()) {
                 return new Path(Utils.dist(curX, curY, firstSite.getX(), firstSite.getY()) - firstSite.getRadius()
-                        - QUEEN_RADIUS - CONTACT_RANGE, firstSite.getX(), firstSite.getY());
+                        - QUEEN_RADIUS - CONTACT_RANGE, firstSite.getX(), firstSite.getY(), false);
             }
 
             // If first site is on the way to second, then find path directly to second site
@@ -339,7 +358,8 @@ class Player {
                     secondSite.get().getX(),
                     secondSite.get().getY()) - secondSite.get().getRadius() - QUEEN_RADIUS - CONTACT_RANGE,
                     (int) turnX,
-                    (int) turnY);
+                    (int) turnY,
+                    false);
         }
 
         @Override
@@ -454,8 +474,7 @@ class Player {
             }
             int myBarracksCount =
                     countStructures(gameState, StructureType.BARRACKS, BarracksType.KNIGHT, Owner.FRIENDLY);
-            int myGiantCount =
-                    countStructures(gameState, StructureType.BARRACKS, BarracksType.GIANT, Owner.FRIENDLY);
+            int myGiantCount = countStructures(gameState, StructureType.BARRACKS, BarracksType.GIANT, Owner.FRIENDLY);
             int enemyBarracksCount =
                     countStructures(gameState, StructureType.BARRACKS, BarracksType.KNIGHT, Owner.ENEMY);
             int myMinesCount = countStructures(gameState, StructureType.MINE, null, Owner.FRIENDLY);
@@ -668,7 +687,7 @@ class Player {
             BuildingSite site = touchSite.get();
             Optional<BuildingDecision> decision = buildingDecision(site, gameState);
 
-            if (!decision.isPresent()) {
+            if (!decision.isPresent() || decision.get().getStructureType() == site.getStructureType()) {
                 if (site.getOwner() == Owner.FRIENDLY && site.getStructureType() == StructureType.MINE
                         && site.getMaxMineSize().orElse(0) > site.getIncomeRate() && !RunFromKnightsRule.isPanicMode(
                         gameState)) {
