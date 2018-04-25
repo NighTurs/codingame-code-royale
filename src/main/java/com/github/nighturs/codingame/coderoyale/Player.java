@@ -628,8 +628,7 @@ class Player {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 } else if (RunFromKnightsRule.isPanicMode(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
-                } else if (myBarracksCount > 0 && myGiantCount == 0 && gameState.getGoldLeft() > GIANT_COST
-                        && gameState.getOverallIncome() >= KNIGHT_COST / KNIGHT_TRAIN_TURNS) {
+                } else if (myBarracksCount > 0 && myGiantCount == 0 && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.GIANT,
                             0 + enemyKnightsBonus));
