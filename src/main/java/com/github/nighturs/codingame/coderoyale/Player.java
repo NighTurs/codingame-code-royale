@@ -17,6 +17,7 @@ class Player {
 
     static final int KNIGHT_COST = 80;
     static final int ARCHER_COST = 100;
+    static final int GIANT_COST = 140;
     static final int GRID_WIDTH = 1920;
     static final int GRID_HEIGHT = 1000;
     static final int QUEEN_SPEED = 60;
@@ -453,6 +454,8 @@ class Player {
             }
             int myBarracksCount =
                     countStructures(gameState, StructureType.BARRACKS, BarracksType.KNIGHT, Owner.FRIENDLY);
+            int myGiantCount =
+                    countStructures(gameState, StructureType.BARRACKS, BarracksType.GIANT, Owner.FRIENDLY);
             int enemyBarracksCount =
                     countStructures(gameState, StructureType.BARRACKS, BarracksType.KNIGHT, Owner.ENEMY);
             int myMinesCount = countStructures(gameState, StructureType.MINE, null, Owner.FRIENDLY);
@@ -536,8 +539,7 @@ class Player {
             //noinspection ConstantConditions
             if (site.getStructureType() == StructureType.NONE || (site.getStructureType() == StructureType.BARRACKS
                     && site.getBarracksType() == BarracksType.KNIGHT && myBarracksCount > 1
-                    && closestMyBarracks.get().getId() != site.getId()
-                    && gameState.getOverallIncome() < KNIGHT_COST / KNIGHT_TRAIN_TURNS)) {
+                    && closestMyBarracks.get().getId() != site.getId())) {
                 //noinspection IfStatementWithIdenticalBranches
                 if (myBarracksCount == 0 && site.getMaxMineSize().orElse(2) == 1) {
                     System.err.println(String.format("Decision name=%s, id=%d, mineS=%d",
@@ -570,6 +572,11 @@ class Player {
                                     closestEnemyBarracks.get().getX(),
                                     closestEnemyBarracks.get().getY())));
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                } else if (myBarracksCount > 0 && myGiantCount == 0 && gameState.getGoldLeft() > GIANT_COST
+                        && gameState.getOverallIncome() >= KNIGHT_COST / KNIGHT_TRAIN_TURNS) {
+                    return Optional.of(new BuildingDecision(StructureType.BARRACKS,
+                            BarracksType.GIANT,
+                            0 + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myBarracksDistToEnemyQueen.isPresent()
                         && myBarracksDistToEnemyQueen.get() - distToEnemyQueen >= BARRACKS_REPLACEMENT_THRESHOLD_DIST) {
                     System.err.println(String.format("Decision name=%s, id=%d, bD=%f",
@@ -580,21 +587,16 @@ class Player {
                             BarracksType.KNIGHT,
                             distToEnemyQueen / 4 + enemyKnightsBonus));
                 } else if (site.getGold().orElse(1) > 0) {
-                    System.err.println(String.format("Decision name=%s, id=%d",
-                            "PlaceMine",
-                            site.getId()));
+                    System.err.println(String.format("Decision name=%s, id=%d", "PlaceMine", site.getId()));
                     return Optional.of(new BuildingDecision(StructureType.MINE,
                             null,
                             (site.getMaxMineSize().orElse(1) - 1) * QUEEN_SPEED + enemyKnightsBonus));
                 } else {
-                    System.err.println(String.format("Decision name=%s, id=%d",
-                            "DefaultTower",
-                            site.getId()));
+                    System.err.println(String.format("Decision name=%s, id=%d", "DefaultTower", site.getId()));
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 }
-            }System.err.println(String.format("Decision name=%s, id=%d",
-                    "Nothing",
-                    site.getId()));
+            }
+            System.err.println(String.format("Decision name=%s, id=%d", "Nothing", site.getId()));
             return Optional.empty();
         }
 
@@ -699,16 +701,27 @@ class Player {
         public Optional<MoveBuilder> makeMove(GameState gameState) {
             List<Integer> trainSites = new ArrayList<>();
             int gold = gameState.getGoldLeft();
-            if (gold < KNIGHT_COST * 2) {
-                return Optional.empty();
-            }
-            for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getOwner() != Owner.FRIENDLY || site.getBarracksType() != BarracksType.KNIGHT
-                        || site.getUntilTrain() > 0) {
-                    continue;
-                }
+
+            List<BuildingSite> knightBarracks = gameState.getBuildingSites()
+                    .stream()
+                    .filter(x -> x.getOwner() == Owner.FRIENDLY && x.getBarracksType() == BarracksType.KNIGHT)
+                    .sorted(Comparator.comparingDouble(x -> Utils.dist(x.getX(),
+                            x.getY(),
+                            gameState.getEnemyQueen().getX(),
+                            gameState.getEnemyQueen().getY())))
+                    .collect(Collectors.toList());
+            for (BuildingSite site : knightBarracks) {
                 if (gold >= KNIGHT_COST) {
                     gold -= KNIGHT_COST;
+                    trainSites.add(site.getId());
+                }
+            }
+            for (BuildingSite site : gameState.getBuildingSites()) {
+                if (site.getOwner() != Owner.FRIENDLY || site.getBarracksType() != BarracksType.GIANT) {
+                    continue;
+                }
+                if (gold >= GIANT_COST) {
+                    gold -= GIANT_COST;
                     trainSites.add(site.getId());
                 }
             }
