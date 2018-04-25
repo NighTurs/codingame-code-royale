@@ -216,7 +216,7 @@ class Player {
 
     static class GoToNewSiteRule implements Rule {
 
-        private final static int ENEMY_TERRITORY = 450;
+        private static final int ENEMY_TERRITORY = 450;
 
         private static class Path {
 
@@ -816,7 +816,7 @@ class Player {
             List<Rule> queenRules =
                     Arrays.asList(new GoToNewSiteRule(), new BuildStructureRule(), new RunFromKnightsRule());
             Optional<MoveBuilder> queenMoveOpt = bestPriorityMove(gameState, queenRules);
-            List<Rule> structureRules = Arrays.asList(new TrainUnitsRule());
+            List<Rule> structureRules = Collections.singletonList(new TrainUnitsRule());
             Optional<MoveBuilder> structureMoveOpt = bestPriorityMove(gameState, structureRules);
             MoveBuilder queenMove = queenMoveOpt.orElse(new MoveBuilder());
             queenMove.setTrainInSites(structureMoveOpt.map(MoveBuilder::getTrainInSites)
