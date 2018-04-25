@@ -204,6 +204,8 @@ class Player {
 
     static class GoToNewSiteRule implements Rule {
 
+        private final static int ENEMY_TERRITORY = 450;
+
         private static class Path {
 
             private final double dist;
@@ -369,6 +371,9 @@ class Player {
             for (BuildingSite site : gameState.getBuildingSites()) {
                 if (gameState.getTouchedSiteOpt().isPresent()
                         && gameState.getTouchedSiteOpt().get().getId() == site.getId()) {
+                    continue;
+                }
+                if (Math.abs(site.getX() - (GRID_WIDTH - gameState.getMyCornerX())) <= ENEMY_TERRITORY) {
                     continue;
                 }
                 boolean inEnemyTowerRange = false;
