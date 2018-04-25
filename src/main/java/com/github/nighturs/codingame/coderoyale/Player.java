@@ -20,9 +20,13 @@ class Player {
     static final int GRID_WIDTH = 1920;
     static final int GRID_HEIGHT = 1000;
     static final int QUEEN_SPEED = 60;
+    static final int KNIGHT_SPEED = 100;
     static final int CONTACT_RANGE = 5;
     static final int QUEEN_RADIUS = 30;
     static final int KNIGHT_RADIUS = 20;
+    static final int MAX_TOWER_HP = 800;
+    static final int QUEEN_TOWER_UP = 100;
+    static final int KNIGHT_TRAIN_TURNS = 4;
 
     public static void main(String[] args) {
         Scanner in = new Scanner(System.in);
@@ -339,14 +343,11 @@ class Player {
 
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
-            if (gameState.getTouchedSiteOpt().isPresent()
-                    && gameState.getTouchedSiteOpt().get().getOwner() != Owner.FRIENDLY) {
-                return Optional.empty();
-            }
-            List<BuildingSite> vacantSites = new ArrayList<>();
+            List<SimpleEntry<BuildingSite, Double>> vacantSites = new ArrayList<>();
+            Unit myQueen = gameState.getMyQueen();
             for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getOwner() == Owner.FRIENDLY || site.getStructureType() == StructureType.TOWER
-                        || site.getGold().orElse(1) == 0) {
+                if (gameState.getTouchedSiteOpt().isPresent()
+                        && gameState.getTouchedSiteOpt().get().getId() == site.getId()) {
                     continue;
                 }
                 boolean inEnemyTowerRange = false;
@@ -358,23 +359,31 @@ class Player {
                         inEnemyTowerRange = true;
                     }
                 }
-                if (!inEnemyTowerRange) {
-                    vacantSites.add(site);
+                if (inEnemyTowerRange) {
+                    continue;
                 }
+                Optional<BuildStructureRule.BuildingDecision> buildingDecision =
+                        BuildStructureRule.buildingDecision(site, gameState);
+                if (!buildingDecision.isPresent()) {
+                    continue;
+                }
+                vacantSites.add(new SimpleEntry<>(site,
+                        Utils.dist(site.getX(), site.getY(), myQueen.getX(), myQueen.getY()) - buildingDecision.get()
+                                .getDistBonus()));
             }
-            Unit myQueen = gameState.getMyQueen();
 
-            vacantSites.sort(Comparator.comparingDouble(a -> Utils.dist(a.getX(),
-                    a.getY(),
-                    myQueen.getX(),
-                    myQueen.getY())));
+            vacantSites.sort(Comparator.comparingDouble(SimpleEntry::getValue));
 
             if (vacantSites.isEmpty()) {
                 return Optional.empty();
             }
 
             if (vacantSites.size() == 1) {
-                Path path = findPath(myQueen.getX(), myQueen.getY(), vacantSites.get(0), Optional.empty(), gameState);
+                Path path = findPath(myQueen.getX(),
+                        myQueen.getY(),
+                        vacantSites.get(0).getKey(),
+                        Optional.empty(),
+                        gameState);
                 return Optional.of(new MoveBuilder().setX(path.getStepX()).setY(path.getStepY()));
             }
 
@@ -385,8 +394,8 @@ class Player {
                 for (int h = i + 1; h < Math.min(vacantSites.size(), 5); h++) {
                     Path path = findPath(myQueen.getX(),
                             myQueen.getY(),
-                            vacantSites.get(i),
-                            Optional.of(vacantSites.get(h)),
+                            vacantSites.get(i).getKey(),
+                            Optional.of(vacantSites.get(h).getKey()),
                             gameState);
                     if (path.getDist() < minDist) {
                         minDist = path.getDist();
@@ -410,90 +419,272 @@ class Player {
 
     static class BuildStructureRule implements Rule {
 
-        private enum BuildGoal {
-            MINING,
-            TOWER,
-            KNIGH_BARRACKS
+        private static final int BARRACKS_REPLACEMENT_THRESHOLD_DIST = 400;
+        private static final int COMFORT_TOWERS_NUMBER = 3;
+
+        private static class BuildingDecision {
+
+            private final StructureType structureType;
+            private final BarracksType barracksType;
+            private final double distBonus;
+
+            public BuildingDecision(StructureType structureType, BarracksType barracksType, double distBonus) {
+                this.structureType = structureType;
+                this.barracksType = barracksType;
+                this.distBonus = distBonus;
+            }
+
+            public StructureType getStructureType() {
+                return structureType;
+            }
+
+            public BarracksType getBarracksType() {
+                return barracksType;
+            }
+
+            public double getDistBonus() {
+                return distBonus;
+            }
         }
 
-        private static final List<SimpleEntry<BuildGoal, Integer>> buildOrder =
-                Arrays.asList(new SimpleEntry<>(BuildGoal.MINING, 4),
-                        new SimpleEntry<>(BuildGoal.KNIGH_BARRACKS, 1),
-                        new SimpleEntry<>(BuildGoal.TOWER, 330),
-                        new SimpleEntry<>(BuildGoal.TOWER, 450),
-                        new SimpleEntry<>(BuildGoal.KNIGH_BARRACKS, 2),
-                        new SimpleEntry<>(BuildGoal.TOWER, 450),
-                        new SimpleEntry<>(BuildGoal.TOWER, 450),
-                        new SimpleEntry<>(BuildGoal.MINING, 10),
-                        new SimpleEntry<>(BuildGoal.TOWER, 450),
-                        new SimpleEntry<>(BuildGoal.TOWER, 450));
+        public static Optional<BuildingDecision> buildingDecision(BuildingSite site, GameState gameState) {
+            if (site.getOwner() == Owner.ENEMY && site.getStructureType() == StructureType.TOWER) {
+                return Optional.empty();
+            }
+            int myBarracksCount =
+                    countStructures(gameState, StructureType.BARRACKS, BarracksType.KNIGHT, Owner.FRIENDLY);
+            int enemyBarracksCount =
+                    countStructures(gameState, StructureType.BARRACKS, BarracksType.KNIGHT, Owner.ENEMY);
+            int myMinesCount = countStructures(gameState, StructureType.MINE, null, Owner.FRIENDLY);
+            double distToEnemyQueen = Utils.dist(gameState.getEnemyQueen().getX(),
+                    gameState.getEnemyQueen().getY(),
+                    site.getX(),
+                    site.getY());
+            Unit myQueen = gameState.getMyQueen();
+            Unit enemyQueen = gameState.getEnemyQueen();
+            Optional<BuildingSite> closestEnemyBarracks = closestToStructure(StructureType.BARRACKS,
+                    BarracksType.KNIGHT,
+                    Owner.ENEMY,
+                    myQueen.getX(),
+                    myQueen.getY(),
+                    gameState);
+            Optional<BuildingSite> closestMyBarracks = closestToStructure(StructureType.BARRACKS,
+                    BarracksType.KNIGHT,
+                    Owner.FRIENDLY,
+                    enemyQueen.getX(),
+                    enemyQueen.getY(),
+                    gameState);
+            Optional<Double> myBarracksDistToEnemyQueen =
+                    closestMyBarracks.map(buildingSite -> Utils.dist(buildingSite.getX(),
+                            buildingSite.getY(),
+                            enemyQueen.getX(),
+                            enemyQueen.getY()));
+
+            double enemyKnightsBonus = Double.MAX_VALUE;
+            Optional<Unit> closestEnemyKnight = Optional.empty();
+            boolean applyKnightBonus = false;
+            for (Unit unit : gameState.getUnits()) {
+                if (unit.getUnitType() != UnitType.KNIGHT || unit.getOwner() != Owner.ENEMY) {
+                    continue;
+                }
+                double bonus = Utils.dist(unit.getX(), unit.getY(), myQueen.getX(), myQueen.getY()) / KNIGHT_SPEED
+                        * QUEEN_SPEED;
+                if (enemyKnightsBonus > bonus) {
+                    enemyKnightsBonus = bonus;
+                    closestEnemyKnight = Optional.of(unit);
+                    applyKnightBonus = true;
+                }
+            }
+
+            if (!applyKnightBonus) {
+                enemyKnightsBonus = 0;
+            }
+
+            if (site.getStructureType() == StructureType.MINE) {
+                if (applyKnightBonus && towersOnPath(gameState,
+                        gameState.getMyQueen().getX(),
+                        gameState.getMyQueen().getY(),
+                        closestEnemyBarracks.map(BuildingSite::getX).orElse(closestEnemyKnight.get().getX()),
+                        closestEnemyBarracks.map(BuildingSite::getY).orElse(closestEnemyKnight.get().getY()))
+                        < COMFORT_TOWERS_NUMBER) {
+                    System.err.println(String.format("Decision name=%s, id=%d, kbonus=%f, tonpath=%d",
+                            "MineToTower",
+                            site.getId(),
+                            enemyKnightsBonus,
+                            towersOnPath(gameState,
+                                    gameState.getMyQueen().getX(),
+                                    gameState.getMyQueen().getY(),
+                                    closestEnemyBarracks.map(BuildingSite::getX)
+                                            .orElse(closestEnemyKnight.get().getX()),
+                                    closestEnemyBarracks.map(BuildingSite::getY)
+                                            .orElse(closestEnemyKnight.get().getY()))));
+                    return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                }
+            }
+
+            if (site.getStructureType() == StructureType.TOWER) {
+                // Integer division intended
+                if ((MAX_TOWER_HP - site.getTowerHP()) / QUEEN_TOWER_UP > 2) {
+                    System.err.println(String.format("Decision name=%s, id=%d, hpcheck=%d",
+                            "BoostTower",
+                            site.getId(),
+                            (MAX_TOWER_HP - site.getTowerHP()) / QUEEN_TOWER_UP));
+                    return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                }
+            }
+
+            //noinspection ConstantConditions
+            if (site.getStructureType() == StructureType.NONE || (site.getStructureType() == StructureType.BARRACKS
+                    && site.getBarracksType() == BarracksType.KNIGHT && myBarracksCount > 1
+                    && closestMyBarracks.get().getId() != site.getId()
+                    && gameState.getOverallIncome() < KNIGHT_COST / KNIGHT_TRAIN_TURNS)) {
+                //noinspection IfStatementWithIdenticalBranches
+                if (myBarracksCount == 0 && site.getMaxMineSize().orElse(2) == 1) {
+                    System.err.println(String.format("Decision name=%s, id=%d, mineS=%d",
+                            "ShallowMine",
+                            site.getId(),
+                            site.getMaxMineSize().orElse(2)));
+                    return Optional.of(new BuildingDecision(StructureType.BARRACKS,
+                            BarracksType.KNIGHT,
+                            distToEnemyQueen / 4 + enemyKnightsBonus));
+                } else if (myBarracksCount == 0 && myMinesCount >= 2) {
+                    System.err.println(String.format("Decision name=%s, id=%d, mineC=%d",
+                            "NeedBarracks",
+                            site.getId(),
+                            myMinesCount));
+                    return Optional.of(new BuildingDecision(StructureType.BARRACKS,
+                            BarracksType.KNIGHT,
+                            distToEnemyQueen / 4 + enemyKnightsBonus));
+                } else if ((enemyBarracksCount > 0 || applyKnightBonus) && closestEnemyBarracks.isPresent() &&
+                        towersOnPath(gameState,
+                                gameState.getMyQueen().getX(),
+                                gameState.getMyQueen().getY(),
+                                closestEnemyBarracks.get().getX(),
+                                closestEnemyBarracks.get().getY()) < COMFORT_TOWERS_NUMBER) {
+                    System.err.println(String.format("Decision name=%s, id=%d, tPath=%d",
+                            "EnemyHazzard",
+                            site.getId(),
+                            towersOnPath(gameState,
+                                    gameState.getMyQueen().getX(),
+                                    gameState.getMyQueen().getY(),
+                                    closestEnemyBarracks.get().getX(),
+                                    closestEnemyBarracks.get().getY())));
+                    return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                } else if (myBarracksCount > 0 && myBarracksDistToEnemyQueen.isPresent()
+                        && myBarracksDistToEnemyQueen.get() - distToEnemyQueen >= BARRACKS_REPLACEMENT_THRESHOLD_DIST) {
+                    System.err.println(String.format("Decision name=%s, id=%d, bD=%f",
+                            "ReplaceBarrack",
+                            site.getId(),
+                            myBarracksDistToEnemyQueen.get() - distToEnemyQueen));
+                    return Optional.of(new BuildingDecision(StructureType.BARRACKS,
+                            BarracksType.KNIGHT,
+                            distToEnemyQueen / 4 + enemyKnightsBonus));
+                } else if (site.getGold().orElse(1) > 0) {
+                    System.err.println(String.format("Decision name=%s, id=%d",
+                            "PlaceMine",
+                            site.getId()));
+                    return Optional.of(new BuildingDecision(StructureType.MINE,
+                            null,
+                            (site.getMaxMineSize().orElse(1) - 1) * QUEEN_SPEED + enemyKnightsBonus));
+                } else {
+                    System.err.println(String.format("Decision name=%s, id=%d",
+                            "DefaultTower",
+                            site.getId()));
+                    return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                }
+            }System.err.println(String.format("Decision name=%s, id=%d",
+                    "Nothing",
+                    site.getId()));
+            return Optional.empty();
+        }
+
+        public static Optional<BuildingSite> closestToStructure(StructureType type,
+                                                                BarracksType barracksType,
+                                                                Owner owner,
+                                                                int x,
+                                                                int y,
+                                                                GameState gameState) {
+            double minDist = Double.MAX_VALUE;
+            BuildingSite closest = null;
+            for (BuildingSite site : gameState.getBuildingSites()) {
+                if (site.getStructureType() != type || site.getBarracksType() != barracksType
+                        || site.getOwner() != owner) {
+                    continue;
+                }
+                double dist = Utils.dist(x, y, site.getX(), site.getY());
+                if (dist < minDist) {
+                    minDist = dist;
+                    closest = site;
+                }
+            }
+            return Optional.ofNullable(closest);
+        }
+
+        public static int towersOnPath(GameState gameState, int x1, int y1, int x2, int y2) {
+            int count = 0;
+            for (BuildingSite site : gameState.getBuildingSites()) {
+                if (site.getStructureType() != StructureType.TOWER || site.getOwner() != Owner.FRIENDLY) {
+                    continue;
+                }
+                if (Utils.dist(x1, y1, site.getX(), site.getY()) <= site.getTowerRange()
+                        || Utils.dist(x2, y2, site.getX(), site.getY()) <= site.getTowerRange() || Utils.isObstackle(x1,
+                        y1,
+                        x2,
+                        y2,
+                        site.getX(),
+                        site.getY(),
+                        site.getTowerRange())) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        public static int countStructures(GameState gameState,
+                                          StructureType structureType,
+                                          BarracksType barracksType,
+                                          Owner owner) {
+            int counter = 0;
+            for (BuildingSite site : gameState.getBuildingSites()) {
+                if (site.getStructureType() == structureType && (barracksType == null
+                        || site.getBarracksType() == barracksType) && site.getOwner() == owner) {
+                    counter++;
+                }
+            }
+            return counter;
+        }
 
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
 
-            int countKnightBarracks = 0;
-            int mining = 0;
-            int countTowers = 0;
-            for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getOwner() != Owner.FRIENDLY) {
-                    continue;
-                }
-                if (site.getBarracksType() == BarracksType.KNIGHT) {
-                    countKnightBarracks++;
-                }
-                if (site.getStructureType() == StructureType.MINE) {
-                    mining += site.getIncomeRate();
-                }
-                if (site.getStructureType() == StructureType.TOWER) {
-                    countTowers++;
-                }
-            }
-
             Optional<BuildingSite> touchSite = gameState.getTouchedSiteOpt();
 
-            if (touchSite.isPresent() && touchSite.get().getOwner() == Owner.FRIENDLY
-                    && touchSite.get().getStructureType() == StructureType.MINE
-                    && touchSite.get().getMaxMineSize().orElse(0) > touchSite.get().getIncomeRate()) {
-                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
-                        .setStructureType(StructureType.MINE));
+            if (!touchSite.isPresent()) {
+                return Optional.empty();
             }
 
-            if (touchSite.isPresent()) {
-                for (SimpleEntry<BuildGoal, Integer> goal : buildOrder) {
-                    switch (goal.getKey()) {
-                        case MINING:
-                            if (mining < goal.getValue() && touchSite.get().getOwner() == Owner.NONE
-                                    && touchSite.get().getGold().orElse(1) > 0 && !RunFromKnightsRule.isPanicMode(
-                                    gameState)) {
-                                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
-                                        .setStructureType(StructureType.MINE));
-                            }
-                            break;
-                        case KNIGH_BARRACKS:
-                            if (countKnightBarracks < goal.getValue() && touchSite.get().getOwner() == Owner.NONE) {
-                                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
-                                        .setStructureType(StructureType.BARRACKS)
-                                        .setBarracksType(BarracksType.KNIGHT));
-                            }
-                            break;
-                        case TOWER:
-                            if (countTowers == 0 && touchSite.get().getOwner() == Owner.NONE) {
-                                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
-                                        .setStructureType(StructureType.TOWER));
-                            }
-                            if (countTowers == 1 && touchSite.get().getOwner() == Owner.FRIENDLY
-                                    && touchSite.get().getStructureType() == StructureType.TOWER
-                                    && touchSite.get().getTowerRange() < goal.getValue()
-                                    && !RunFromKnightsRule.isPanicMode(gameState)) {
-                                return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
-                                        .setStructureType(StructureType.TOWER));
-                            }
-                            countTowers--;
-                    }
+            BuildingSite site = touchSite.get();
+            Optional<BuildingDecision> decision = buildingDecision(site, gameState);
+
+            if (!decision.isPresent()) {
+                if (site.getOwner() == Owner.FRIENDLY && site.getStructureType() == StructureType.MINE
+                        && site.getMaxMineSize().orElse(0) > site.getIncomeRate() && !RunFromKnightsRule.isPanicMode(
+                        gameState)) {
+                    return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                            .setStructureType(StructureType.MINE));
                 }
+                if (site.getOwner() == Owner.FRIENDLY && site.getStructureType() == StructureType.TOWER
+                        && MAX_TOWER_HP - site.getTowerHP() >= QUEEN_TOWER_UP / 2 && !RunFromKnightsRule.isPanicMode(
+                        gameState)) {
+                    return Optional.of(new MoveBuilder().setSiteId(touchSite.get().getId())
+                            .setStructureType(StructureType.TOWER));
+                }
+                return Optional.empty();
             }
 
-            return Optional.empty();
+            return Optional.of(new MoveBuilder().setStructureType(decision.get().getStructureType())
+                    .setBarracksType(decision.get().getBarracksType())
+                    .setSiteId(site.getId()));
         }
 
         @Override
@@ -575,8 +766,10 @@ class Player {
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private Optional<BuildingSite> touchedSiteOpt;
         private Unit myQueen;
+        private Unit enemyQueen;
         private int myCornerX = -1;
         private int mycornerY = -1;
+        private int overallIncome = 0;
 
         public static GameState create(List<BuildingSiteStatic> buildingSiteStatics) {
             return new GameState(buildingSiteStatics);
@@ -616,12 +809,20 @@ class Player {
             return myQueen;
         }
 
+        public Unit getEnemyQueen() {
+            return enemyQueen;
+        }
+
         public int getMyCornerX() {
             return myCornerX;
         }
 
         public int getMycornerY() {
             return mycornerY;
+        }
+
+        public int getOverallIncome() {
+            return overallIncome;
         }
 
         public void initTurn(int gold,
@@ -639,6 +840,13 @@ class Player {
                     .filter(x -> x.getOwner() == Owner.FRIENDLY && x.getUnitType() == UnitType.QUEEN)
                     .findFirst()
                     .get();
+            //noinspection ConstantConditions
+            this.enemyQueen = units.stream()
+                    .filter(x -> x.getOwner() == Owner.ENEMY && x.getUnitType() == UnitType.QUEEN)
+                    .findFirst()
+                    .get();
+            //noinspection ConstantConditions
+            this.overallIncome = buildingSites.stream().map(BuildingSite::getIncomeRate).reduce((a, b) -> a + b).get();
             if (myCornerX == -1) {
                 if (myQueen.getX() < GRID_WIDTH / 2) {
                     myCornerX = 0;

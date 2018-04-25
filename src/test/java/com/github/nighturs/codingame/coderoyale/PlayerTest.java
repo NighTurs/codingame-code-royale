@@ -1,7 +1,6 @@
 package com.github.nighturs.codingame.coderoyale;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Optional;
 import org.junit.Assert;
 import org.junit.Test;
@@ -36,11 +35,8 @@ public class PlayerTest {
                                 0,
                                 0,
                                 Player.BarracksType.NONE)),
-                Collections.singletonList(Player.Unit.create(500,
-                        500,
-                        Player.Owner.FRIENDLY,
-                        Player.UnitType.QUEEN,
-                        100)));
+                Arrays.asList(Player.Unit.create(500, 500, Player.Owner.FRIENDLY, Player.UnitType.QUEEN, 100),
+                        Player.Unit.create(1000, 1000, Player.Owner.ENEMY, Player.UnitType.QUEEN, 100)));
         Assert.assertTrue(Player.TurnEngine.findMove(gameState).toString().matches("(WAIT|MOVE).*?\nTRAIN"));
     }
 }
