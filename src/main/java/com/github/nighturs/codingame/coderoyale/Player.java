@@ -420,7 +420,7 @@ class Player {
     static class BuildStructureRule implements Rule {
 
         private static final int BARRACKS_REPLACEMENT_THRESHOLD_DIST = 400;
-        private static final int COMFORT_TOWERS_NUMBER = 3;
+        private static final int COMFORT_TOWERS_NUMBER = 2;
 
         private static class BuildingDecision {
 
