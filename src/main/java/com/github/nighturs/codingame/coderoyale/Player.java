@@ -132,9 +132,21 @@ class Player {
                     gameState);
             Unit enemyQueen = gameState.getEnemyQueen();
             for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getOwner() != Owner.FRIENDLY || site.getStructureType() != StructureType.TOWER) {
+                boolean isMyTower = site.getOwner() == Owner.FRIENDLY && site.getStructureType() == StructureType.TOWER;
+                boolean isVacantCoveredByTower = false;
+                if (site.getStructureType() == StructureType.NONE || site.getStructureType() == StructureType.MINE) {
+                    for (BuildingSite siteB : gameState.getBuildingSites()) {
+                        if (siteB.getOwner() == Owner.FRIENDLY && siteB.getStructureType() == StructureType.TOWER
+                                && Utils.dist(siteB.getX(), siteB.getY(), site.getX(), site.getY())
+                                <= siteB.getTowerRange()) {
+                            isVacantCoveredByTower = true;
+                        }
+                    }
+                }
+                if (!isMyTower && !isVacantCoveredByTower) {
                     continue;
                 }
+
                 double dist = Utils.dist(enemyOrigin.map(BuildingSite::getX).orElse(enemyQueen.getX()),
                         enemyOrigin.map(BuildingSite::getY).orElse(enemyQueen.getY()),
                         site.getX(),
@@ -550,7 +562,8 @@ class Player {
                 }
             }
 
-            boolean uselessTower = (site.getStructureType() == StructureType.TOWER) && towersOnPath(gameState,
+            boolean uselessTower = (site.getStructureType() == StructureType.TOWER) && closestEnemyBarracks.isPresent()
+                    && towersOnPath(gameState,
                     myQueen.getX(),
                     myQueen.getY(),
                     closestEnemyBarracks.get().getX(),
