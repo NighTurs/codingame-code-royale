@@ -527,8 +527,8 @@ class Player {
                         gameState.getMyQueen().getX(),
                         gameState.getMyQueen().getY(),
                         closestEnemyBarracks.map(BuildingSite::getX).orElse(closestEnemyKnight.get().getX()),
-                        closestEnemyBarracks.map(BuildingSite::getY).orElse(closestEnemyKnight.get().getY()))
-                        < COMFORT_TOWERS_NUMBER) {
+                        closestEnemyBarracks.map(BuildingSite::getY).orElse(closestEnemyKnight.get().getY()),
+                        null) < COMFORT_TOWERS_NUMBER) {
                     System.err.println(String.format("Decision name=%s, id=%d, kbonus=%f, tonpath=%d",
                             "MineToTower",
                             site.getId(),
@@ -539,14 +539,27 @@ class Player {
                                     closestEnemyBarracks.map(BuildingSite::getX)
                                             .orElse(closestEnemyKnight.get().getX()),
                                     closestEnemyBarracks.map(BuildingSite::getY)
-                                            .orElse(closestEnemyKnight.get().getY()))));
+                                            .orElse(closestEnemyKnight.get().getY()),
+                                    null)));
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 }
             }
 
+            boolean uselessTower = (site.getStructureType() == StructureType.TOWER) && towersOnPath(gameState,
+                    myQueen.getX(),
+                    myQueen.getY(),
+                    closestEnemyBarracks.get().getX(),
+                    closestEnemyBarracks.get().getY(),
+                    site) >= COMFORT_TOWERS_NUMBER && towersOnPath(gameState,
+                    site.getX(),
+                    site.getY(),
+                    closestEnemyBarracks.get().getX(),
+                    closestEnemyBarracks.get().getY(),
+                    site) >= COMFORT_TOWERS_NUMBER && site.getGold().orElse(1) > 0;
+
             if (site.getStructureType() == StructureType.TOWER) {
                 // Integer division intended
-                if ((MAX_TOWER_HP - site.getTowerHP()) / QUEEN_TOWER_UP > 2) {
+                if ((MAX_TOWER_HP - site.getTowerHP()) / QUEEN_TOWER_UP > 2 && !uselessTower) {
                     System.err.println(String.format("Decision name=%s, id=%d, hpcheck=%d",
                             "BoostTower",
                             site.getId(),
@@ -555,10 +568,12 @@ class Player {
                 }
             }
 
+            boolean uselessBarracks =
+                    (site.getStructureType() == StructureType.BARRACKS && site.getBarracksType() == BarracksType.KNIGHT
+                            && myBarracksCount > 1 && closestMyBarracks.get().getId() != site.getId());
+
             //noinspection ConstantConditions
-            if (site.getStructureType() == StructureType.NONE || (site.getStructureType() == StructureType.BARRACKS
-                    && site.getBarracksType() == BarracksType.KNIGHT && myBarracksCount > 1
-                    && closestMyBarracks.get().getId() != site.getId())) {
+            if (site.getStructureType() == StructureType.NONE || uselessBarracks || uselessTower) {
                 //noinspection IfStatementWithIdenticalBranches
                 if (myBarracksCount == 0 && site.getMaxMineSize().orElse(2) == 1) {
                     System.err.println(String.format("Decision name=%s, id=%d, mineS=%d",
@@ -581,7 +596,8 @@ class Player {
                                 gameState.getMyQueen().getX(),
                                 gameState.getMyQueen().getY(),
                                 closestEnemyBarracks.get().getX(),
-                                closestEnemyBarracks.get().getY()) < COMFORT_TOWERS_NUMBER) {
+                                closestEnemyBarracks.get().getY(),
+                                null) < COMFORT_TOWERS_NUMBER) {
                     System.err.println(String.format("Decision name=%s, id=%d, tPath=%d",
                             "EnemyHazzard",
                             site.getId(),
@@ -589,7 +605,10 @@ class Player {
                                     gameState.getMyQueen().getX(),
                                     gameState.getMyQueen().getY(),
                                     closestEnemyBarracks.get().getX(),
-                                    closestEnemyBarracks.get().getY())));
+                                    closestEnemyBarracks.get().getY(),
+                                    null)));
+                    return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                } else if (RunFromKnightsRule.isPanicMode(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myGiantCount == 0 && gameState.getGoldLeft() > GIANT_COST
                         && gameState.getOverallIncome() >= KNIGHT_COST / KNIGHT_TRAIN_TURNS) {
@@ -641,10 +660,11 @@ class Player {
             return Optional.ofNullable(closest);
         }
 
-        public static int towersOnPath(GameState gameState, int x1, int y1, int x2, int y2) {
+        public static int towersOnPath(GameState gameState, int x1, int y1, int x2, int y2, BuildingSite ignoreTower) {
             int count = 0;
             for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getStructureType() != StructureType.TOWER || site.getOwner() != Owner.FRIENDLY) {
+                if (site.getStructureType() != StructureType.TOWER || site.getOwner() != Owner.FRIENDLY || (
+                        ignoreTower != null && site.getId() == ignoreTower.getId())) {
                     continue;
                 }
                 if (Utils.dist(x1, y1, site.getX(), site.getY()) <= site.getTowerRange()
