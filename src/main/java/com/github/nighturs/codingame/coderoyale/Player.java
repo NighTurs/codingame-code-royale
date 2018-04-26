@@ -134,7 +134,7 @@ class Player {
             for (BuildingSite site : gameState.getBuildingSites()) {
                 boolean isMyTower = site.getOwner() == Owner.FRIENDLY && site.getStructureType() == StructureType.TOWER;
                 boolean isVacantCoveredByTower = false;
-                if (site.getStructureType() == StructureType.NONE || site.getStructureType() == StructureType.MINE) {
+                if (site.getStructureType() == StructureType.NONE) {
                     for (BuildingSite siteB : gameState.getBuildingSites()) {
                         if (siteB.getOwner() == Owner.FRIENDLY && siteB.getStructureType() == StructureType.TOWER
                                 && Utils.dist(siteB.getX(), siteB.getY(), site.getX(), site.getY())
