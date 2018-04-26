@@ -712,6 +712,73 @@ class Player {
         }
     }
 
+    static class GiveWayToKnightRule {
+
+        private static final double STEP_CHUNKS = 5;
+
+        private static boolean isInWay(Unit knight, Unit queen, int nextX, int nextY, int steps) {
+            boolean result = false;
+            for (int step = 1; step <= steps; step++) {
+                double mod = KNIGHT_SPEED * step * 1.0 / STEP_CHUNKS / Utils.dist(queen.getX(),
+                        queen.getY(),
+                        knight.getX(),
+                        knight.getY());
+                int kNextX = knight.getX() + (int) (mod * (queen.getX() - knight.getX()));
+                int kNextY = knight.getY() + (int) (mod * (queen.getY() - knight.getY()));
+                result = result || (Utils.dist(kNextX, kNextY, nextX, nextY) < KNIGHT_RADIUS + QUEEN_RADIUS);
+            }
+            return result;
+        }
+
+        public Optional<MoveBuilder> makeMove(Move preferedMove, GameState gameState) {
+            if (preferedMove.getX() == null) {
+                return Optional.empty();
+            }
+            Unit myQueen = gameState.getMyQueen();
+            double k =
+                    QUEEN_SPEED / Utils.dist(myQueen.getX(), myQueen.getY(), preferedMove.getX(), preferedMove.getY());
+            int preferedX = myQueen.getX() + (int) ((preferedMove.getX() - myQueen.getX()) * k);
+            int preferedY = myQueen.getY() + (int) ((preferedMove.getY() - myQueen.getY()) * k);
+
+            Unit enemyQueen = gameState.getEnemyQueen();
+            for (Unit unit : gameState.getUnits()) {
+                if (unit.getOwner() != Owner.FRIENDLY || unit.getUnitType() != UnitType.KNIGHT) {
+                    continue;
+                }
+
+                if (isInWay(unit, enemyQueen, preferedX, preferedY, 5)) {
+                    double minDist = Double.MAX_VALUE;
+                    int bestNextX = 0;
+                    int bestNextY = 0;
+                    for (int x1 = -QUEEN_SPEED; x1 <= QUEEN_SPEED; x1++) {
+                        for (int y1 = -QUEEN_SPEED; y1 <= QUEEN_SPEED; y1++) {
+                            int newX = myQueen.getX() + x1;
+                            int newY = myQueen.getY() + y1;
+                            if (newX < 0 || newX > GRID_WIDTH || newY < 0 || newY > GRID_HEIGHT
+                                    || Utils.dist(myQueen.getX(), myQueen.getY(), newX, newY) > QUEEN_SPEED) {
+                                continue;
+                            }
+                            if (isInWay(unit, enemyQueen, newX, newY, 5)) {
+                                continue;
+                            }
+                            double dist = Utils.dist(newX, newY, preferedX, preferedY);
+                            if (minDist > dist) {
+                                minDist = dist;
+                                bestNextX = newX;
+                                bestNextY = newY;
+                            }
+                        }
+                    }
+                    //noinspection FloatingPointEquality
+                    if (minDist != Double.MAX_VALUE) {
+                        return Optional.of(new MoveBuilder().setX(bestNextX).setY(bestNextY));
+                    }
+                }
+            }
+            return Optional.empty();
+        }
+    }
+
     static class TrainUnitsRule implements Rule {
 
         @Override
@@ -756,6 +823,10 @@ class Player {
 
     static class TurnEngine {
 
+        private static GiveWayToKnightRule giveWayToKnightRule = new GiveWayToKnightRule();
+        private static List<Rule> queenRules =
+                Arrays.asList(new GoToNewSiteRule(), new BuildStructureRule(), new RunFromKnightsRule());
+
         private static Optional<MoveBuilder> bestPriorityMove(GameState gameState, List<Rule> rules) {
             int currentPriority = Integer.MIN_VALUE;
             MoveBuilder moveBuilder = null;
@@ -773,9 +844,14 @@ class Player {
         }
 
         public static Move findMove(GameState gameState) {
-            List<Rule> queenRules =
-                    Arrays.asList(new GoToNewSiteRule(), new BuildStructureRule(), new RunFromKnightsRule());
             Optional<MoveBuilder> queenMoveOpt = bestPriorityMove(gameState, queenRules);
+            if (queenMoveOpt.isPresent()) {
+                Optional<MoveBuilder> subMove =
+                        giveWayToKnightRule.makeMove(queenMoveOpt.get().createMove(), gameState);
+                if (subMove.isPresent()) {
+                    queenMoveOpt = subMove;
+                }
+            }
             List<Rule> structureRules = Collections.singletonList(new TrainUnitsRule());
             Optional<MoveBuilder> structureMoveOpt = bestPriorityMove(gameState, structureRules);
             MoveBuilder queenMove = queenMoveOpt.orElse(new MoveBuilder());
@@ -948,6 +1024,14 @@ class Player {
             this.structureType = structureType;
             this.barracksType = barracksType;
             this.trainInSites = trainInSites;
+        }
+
+        public Integer getX() {
+            return x;
+        }
+
+        public Integer getY() {
+            return y;
         }
 
         @Override
