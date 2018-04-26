@@ -501,6 +501,10 @@ class Player {
                     site.getY());
             Unit myQueen = gameState.getMyQueen();
             Unit enemyQueen = gameState.getEnemyQueen();
+            double maxDistToEnemyQueen = Utils.dist(gameState.getMyCornerX(),
+                    gameState.getMycornerY(),
+                    enemyQueen.getX(),
+                    enemyQueen.getY());
             Optional<BuildingSite> closestEnemyBarracks = closestToStructure(StructureType.BARRACKS,
                     BarracksType.KNIGHT,
                     Owner.ENEMY,
@@ -582,11 +586,11 @@ class Player {
                 if (myBarracksCount == 0 && site.getMaxMineSize().orElse(2) == 1) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
-                            distToEnemyQueen / 4 + enemyKnightsBonus));
+                            (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
                 } else if (myBarracksCount == 0 && myMinesCount >= 2) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
-                            distToEnemyQueen / 4 + enemyKnightsBonus));
+                            (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
                 } else if ((enemyBarracksCount > 0 || applyKnightBonus) && closestEnemyBarracks.isPresent() &&
                         towersOnPath(gameState,
                                 gameState.getMyQueen().getX(),
@@ -606,7 +610,7 @@ class Player {
                         && myBarracksDistToEnemyQueen.get() - distToEnemyQueen >= BARRACKS_REPLACEMENT_THRESHOLD_DIST) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
-                            distToEnemyQueen / 4 + enemyKnightsBonus));
+                            (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
                 } else if (site.getGold().orElse(1) > 0) {
                     return Optional.of(new BuildingDecision(StructureType.MINE,
                             null,
