@@ -546,7 +546,9 @@ class Player {
                         closestEnemyBarracks.map(BuildingSite::getX).orElse(closestEnemyKnight.get().getX()),
                         closestEnemyBarracks.map(BuildingSite::getY).orElse(closestEnemyKnight.get().getY()),
                         null) < COMFORT_TOWERS_NUMBER) {
-                    return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                    return Optional.of(new BuildingDecision(StructureType.TOWER,
+                            null,
+                            -(site.getIncomeRate() + 1) * QUEEN_SPEED + enemyKnightsBonus));
                 }
             }
 
