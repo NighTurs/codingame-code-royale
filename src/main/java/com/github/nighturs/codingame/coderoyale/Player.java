@@ -530,7 +530,7 @@ class Player {
                 if (unit.getUnitType() != UnitType.KNIGHT || unit.getOwner() != Owner.ENEMY) {
                     continue;
                 }
-                double bonus = Utils.dist(unit.getX(), unit.getY(), myQueen.getX(), myQueen.getY()) / KNIGHT_SPEED
+                double bonus = Utils.dist(unit.getX(), unit.getY(), site.getX(), site.getY()) / KNIGHT_SPEED
                         * QUEEN_SPEED;
                 if (enemyKnightsBonus > bonus) {
                     enemyKnightsBonus = bonus;
