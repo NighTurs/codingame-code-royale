@@ -393,7 +393,8 @@ class Player {
                     if (siteB.getOwner() != Owner.ENEMY || siteB.getStructureType() != StructureType.TOWER) {
                         continue;
                     }
-                    if (Utils.dist(site.getX(), site.getY(), siteB.getX(), siteB.getY()) <= siteB.getTowerRange()) {
+                    if (Utils.dist(site.getX(), site.getY(), siteB.getX(), siteB.getY()) + siteB.getRadius()
+                            <= siteB.getTowerRange()) {
                         inEnemyTowerRange = true;
                     }
                 }
@@ -530,8 +531,8 @@ class Player {
                 if (unit.getUnitType() != UnitType.KNIGHT || unit.getOwner() != Owner.ENEMY) {
                     continue;
                 }
-                double bonus = Utils.dist(unit.getX(), unit.getY(), site.getX(), site.getY()) / KNIGHT_SPEED
-                        * QUEEN_SPEED;
+                double bonus =
+                        Utils.dist(unit.getX(), unit.getY(), site.getX(), site.getY()) / KNIGHT_SPEED * QUEEN_SPEED;
                 if (enemyKnightsBonus > bonus) {
                     enemyKnightsBonus = bonus;
                     closestEnemyKnight = Optional.of(unit);
@@ -557,8 +558,7 @@ class Player {
             }
 
             boolean uselessTower = (site.getStructureType() == StructureType.TOWER) && closestEnemyBarracks.isPresent()
-                    && !applyKnightBonus
-                    && towersOnPath(gameState,
+                    && !applyKnightBonus && towersOnPath(gameState,
                     myQueen.getX(),
                     myQueen.getY(),
                     closestEnemyBarracks.get().getX(),
