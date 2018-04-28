@@ -789,29 +789,25 @@ class Player {
 
     static class TrainUnitsRule implements Rule {
 
-        private static final int WAITING_THRESHOLD = 12;
-
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
             List<Integer> trainSites = new ArrayList<>();
             int gold = gameState.getGoldLeft();
-            int incomeRate = 0;
 
-            for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getOwner() != Owner.FRIENDLY || site.getStructureType() != StructureType.MINE) {
-                    continue;
+            List<BuildingSite> knightBarracks = gameState.getBuildingSites()
+                    .stream()
+                    .filter(x -> x.getOwner() == Owner.FRIENDLY && x.getBarracksType() == BarracksType.KNIGHT)
+                    .sorted(Comparator.comparingDouble(x -> Utils.dist(x.getX(),
+                            x.getY(),
+                            gameState.getEnemyQueen().getX(),
+                            gameState.getEnemyQueen().getY())))
+                    .collect(Collectors.toList());
+            for (BuildingSite site : knightBarracks) {
+                if (gold >= KNIGHT_COST) {
+                    gold -= KNIGHT_COST;
+                    trainSites.add(site.getId());
                 }
-                incomeRate += site.getIncomeRate();
             }
-
-            boolean myKnightsAreOut = false;
-            for (Unit unit : gameState.getUnits()) {
-                if (unit.getOwner() == Owner.FRIENDLY && unit.getUnitType() == UnitType.KNIGHT) {
-                    myKnightsAreOut = true;
-                    break;
-                }
-            }
-
             for (BuildingSite site : gameState.getBuildingSites()) {
                 if (site.getOwner() != Owner.FRIENDLY || site.getBarracksType() != BarracksType.GIANT) {
                     continue;
@@ -821,23 +817,6 @@ class Player {
                     trainSites.add(site.getId());
                 }
             }
-
-            int waitTillNext = incomeRate == 0
-                    ? WAITING_THRESHOLD + 1
-                    : (KNIGHT_COST - (gold - KNIGHT_COST) + incomeRate - 1) / incomeRate - 5;
-            Optional<BuildingSite> knightBarrack = gameState.getBuildingSites()
-                    .stream()
-                    .filter(x -> x.getOwner() == Owner.FRIENDLY && x.getBarracksType() == BarracksType.KNIGHT)
-                    .min(Comparator.comparingDouble(x -> Utils.dist(x.getX(),
-                            x.getY(),
-                            gameState.getEnemyQueen().getX(),
-                            gameState.getEnemyQueen().getY())));
-            if (knightBarrack.isPresent() && gold >= KNIGHT_COST && (
-                    (waitTillNext <= 0 || waitTillNext > WAITING_THRESHOLD) || myKnightsAreOut)) {
-                gold -= KNIGHT_COST;
-                trainSites.add(knightBarrack.get().getId());
-            }
-
             if (!trainSites.isEmpty()) {
                 return Optional.of(new MoveBuilder().setTrainInSites(trainSites));
             }
