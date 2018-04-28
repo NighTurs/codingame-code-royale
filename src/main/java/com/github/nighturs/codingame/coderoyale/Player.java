@@ -836,8 +836,8 @@ class Player {
                             x.getY(),
                             gameState.getEnemyQueen().getX(),
                             gameState.getEnemyQueen().getY())));
-            if (knightBarrack.isPresent() && ((waitTillNext <= 0 || waitTillNext > WAITING_THRESHOLD) || (
-                    myKnightsAreOut && gold >= KNIGHT_COST))) {
+            if (knightBarrack.isPresent() && gold >= KNIGHT_COST && (
+                    (waitTillNext <= 0 || waitTillNext > WAITING_THRESHOLD) || myKnightsAreOut)) {
                 gold -= KNIGHT_COST;
                 trainSites.add(knightBarrack.get().getId());
             }
