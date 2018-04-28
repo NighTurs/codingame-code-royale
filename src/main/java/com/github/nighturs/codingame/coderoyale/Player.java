@@ -589,11 +589,7 @@ class Player {
             //noinspection ConstantConditions
             if (site.getStructureType() == StructureType.NONE || uselessBarracks || uselessTower) {
                 //noinspection IfStatementWithIdenticalBranches
-                if (myBarracksCount == 0 && site.getMaxMineSize().orElse(2) == 1) {
-                    return Optional.of(new BuildingDecision(StructureType.BARRACKS,
-                            BarracksType.KNIGHT,
-                            (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
-                } else if (myBarracksCount == 0 && (myMinesCount >= 2 || enemyBarracksCount != 0)) {
+                if (myBarracksCount == 0 && (myMinesCount >= 2 || enemyBarracksCount != 0)) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
                             (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
