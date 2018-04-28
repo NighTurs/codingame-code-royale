@@ -378,7 +378,8 @@ class Player {
 
         @Override
         public Optional<MoveBuilder> makeMove(GameState gameState) {
-            List<SimpleEntry<BuildingSite, Double>> vacantSites = new ArrayList<>();
+            List<SimpleEntry<BuildingSite, Double>> vacantSitesFirst = new ArrayList<>();
+            List<SimpleEntry<BuildingSite, Double>> vacantSitesSecond = new ArrayList<>();
             Unit myQueen = gameState.getMyQueen();
             for (BuildingSite site : gameState.getBuildingSites()) {
                 if (gameState.getTouchedSiteOpt().isPresent()
@@ -401,43 +402,54 @@ class Player {
                 if (inEnemyTowerRange) {
                     continue;
                 }
-                Optional<BuildStructureRule.BuildingDecision> buildingDecision =
-                        BuildStructureRule.buildingDecision(site, gameState);
-                if (!buildingDecision.isPresent()) {
+                Optional<BuildStructureRule.BuildingDecision> buildingDecisionFirst =
+                        BuildStructureRule.buildingDecision(site, gameState, false);
+                if (!buildingDecisionFirst.isPresent()) {
                     continue;
                 }
-                vacantSites.add(new SimpleEntry<>(site,
-                        Utils.dist(site.getX(), site.getY(), myQueen.getX(), myQueen.getY()) - buildingDecision.get()
-                                .getDistBonus()));
+                Optional<BuildStructureRule.BuildingDecision> buildingDecisionSecond =
+                        BuildStructureRule.buildingDecision(site, gameState, true);
+                vacantSitesFirst.add(new SimpleEntry<>(site, buildingDecisionFirst.get().getDistBonus()));
+                buildingDecisionSecond.ifPresent(buildingDecision -> vacantSitesSecond.add(new SimpleEntry<>(site,
+                        buildingDecision.getDistBonus())));
             }
 
-            vacantSites.sort(Comparator.comparingDouble(SimpleEntry::getValue));
+            vacantSitesFirst.sort(Comparator.comparingDouble(x ->
+                    Utils.dist(myQueen.getX(), myQueen.getY(), x.getKey().getX(), x.getKey().getY()) - x.getValue()));
+            vacantSitesSecond.sort(Comparator.comparingDouble(x ->
+                    Utils.dist(myQueen.getX(), myQueen.getY(), x.getKey().getX(), x.getKey().getY()) - x.getValue()));
 
-            if (vacantSites.isEmpty()) {
+            for (int i = 0; i < Math.min(vacantSitesFirst.size(), 4); i++) {
+                BuildingSite s = vacantSitesFirst.get(i).getKey();
+                System.err.println(String.format("Rate id=%d pen=%f d=%f o=%f",
+                        s.getId(),
+                        vacantSitesFirst.get(i).getValue(),
+                        Utils.dist(myQueen.getX(), myQueen.getY(), s.getX(), s.getY()),
+                        Utils.dist(myQueen.getX(), myQueen.getY(), s.getX(), s.getY()) - vacantSitesFirst.get(i)
+                                .getValue()));
+            }
+
+            if (vacantSitesFirst.isEmpty()) {
                 return Optional.empty();
-            }
-
-            if (vacantSites.size() == 1) {
-                Path path = findPath(myQueen.getX(),
-                        myQueen.getY(),
-                        vacantSites.get(0).getKey(),
-                        Optional.empty(),
-                        gameState);
-                return Optional.of(new MoveBuilder().setX(path.getStepX()).setY(path.getStepY()));
             }
 
             double minDist = Double.MAX_VALUE;
             int moveX = 0;
             int moveY = 0;
-            for (int i = 0; i < Math.min(vacantSites.size(), 2); i++) {
-                for (int h = i + 1; h < Math.min(vacantSites.size(), 5); h++) {
+            for (int i = 0; i < Math.min(vacantSitesFirst.size(), 1); i++) {
+                for (int h = i + 1; h < Math.min(vacantSitesSecond.size(), 5); h++) {
+                    if (vacantSitesFirst.get(i).getKey().getId() == vacantSitesSecond.get(h).getKey().getId()) {
+                        continue;
+                    }
                     Path path = findPath(myQueen.getX(),
                             myQueen.getY(),
-                            vacantSites.get(i).getKey(),
-                            Optional.of(vacantSites.get(h).getKey()),
+                            vacantSitesFirst.get(i).getKey(),
+                            Optional.of(vacantSitesSecond.get(h).getKey()),
                             gameState);
-                    if (path.getDist() < minDist) {
-                        minDist = path.getDist();
+                    if (path.getDist() - vacantSitesFirst.get(i).getValue() - vacantSitesSecond.get(h).getValue()
+                            < minDist) {
+                        minDist = path.getDist() - vacantSitesFirst.get(i).getValue() - vacantSitesSecond.get(h)
+                                .getValue();
                         moveX = path.getStepX();
                         moveY = path.getStepY();
                     }
@@ -445,7 +457,12 @@ class Player {
             }
             //noinspection FloatingPointEquality
             if (minDist == Double.MAX_VALUE) {
-                throw new RuntimeException("Path finder didn't work correctely");
+                Path path = findPath(myQueen.getX(),
+                        myQueen.getY(),
+                        vacantSitesFirst.get(0).getKey(),
+                        Optional.empty(),
+                        gameState);
+                return Optional.of(new MoveBuilder().setX(path.getStepX()).setY(path.getStepY()));
             }
             return Optional.of(new MoveBuilder().setX(moveX).setY(moveY));
         }
@@ -486,7 +503,9 @@ class Player {
             }
         }
 
-        public static Optional<BuildingDecision> buildingDecision(BuildingSite site, GameState gameState) {
+        public static Optional<BuildingDecision> buildingDecision(BuildingSite site,
+                                                                  GameState gameState,
+                                                                  boolean second) {
             if (site.getOwner() == Owner.ENEMY && site.getStructureType() == StructureType.TOWER) {
                 return Optional.empty();
             }
@@ -499,7 +518,7 @@ class Player {
             int myMinesCount = 0;
             double closestEnemyBarracksDist = Double.MAX_VALUE;
             double closestMyBarracksDist = Double.MAX_VALUE;
-            double dist = 0;
+            double dist;
             BuildingSite closestEnemyBarracksOpt = null;
             BuildingSite closestMyBarracksOpt = null;
             for (BuildingSite s : gameState.getBuildingSites()) {
@@ -573,9 +592,9 @@ class Player {
                         null) < COMFORT_TOWERS_NUMBER) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER,
                             null,
-                            -(site.getIncomeRate() + 1) * QUEEN_SPEED + enemyKnightsBonus));
+                            -(site.getIncomeRate() + 1) * 2 * QUEEN_SPEED + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myGiantCount == 0
-                        && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST / 2) {
+                        && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST / 2 && !second) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.GIANT,
                             (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
@@ -609,7 +628,7 @@ class Player {
             //noinspection ConstantConditions
             if (site.getStructureType() == StructureType.NONE || uselessBarracks || uselessTower) {
                 //noinspection IfStatementWithIdenticalBranches
-                if (myBarracksCount == 0 && (myMinesCount >= 2 || enemyBarracksCount != 0)) {
+                if (myBarracksCount == 0 && (myMinesCount >= 2 || enemyBarracksCount != 0) && !second) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
                             (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
@@ -629,7 +648,7 @@ class Player {
                 } else if (RunFromKnightsRule.isPanicMode(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myGiantCount == 0
-                        && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST / 2) {
+                        && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST / 2 && !second) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.GIANT,
                             (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
@@ -702,7 +721,7 @@ class Player {
             }
 
             BuildingSite site = touchSite.get();
-            Optional<BuildingDecision> decision = buildingDecision(site, gameState);
+            Optional<BuildingDecision> decision = buildingDecision(site, gameState, false);
 
             if (!decision.isPresent() || decision.get().getStructureType() == site.getStructureType()) {
                 if (site.getOwner() == Owner.FRIENDLY && site.getStructureType() == StructureType.MINE
