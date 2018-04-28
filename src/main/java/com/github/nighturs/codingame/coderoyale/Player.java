@@ -592,7 +592,7 @@ class Player {
                         gameState.getMyQueen().getY(),
                         closestEnemyBarracks.map(BuildingSite::getX).orElse(closestEnemyKnight.get().getX()),
                         closestEnemyBarracks.map(BuildingSite::getY).orElse(closestEnemyKnight.get().getY()),
-                        null) < COMFORT_TOWERS_NUMBER) {
+                        null) < comfortTowersNumber(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER,
                             null,
                             -(site.getIncomeRate() + 1) * 2 * QUEEN_SPEED + enemyKnightsBonus));
@@ -610,12 +610,12 @@ class Player {
                     myQueen.getY(),
                     closestEnemyBarracks.get().getX(),
                     closestEnemyBarracks.get().getY(),
-                    site) >= COMFORT_TOWERS_NUMBER && towersOnPath(gameState,
+                    site) >= comfortTowersNumber(gameState) && towersOnPath(gameState,
                     site.getX(),
                     site.getY(),
                     closestEnemyBarracks.get().getX(),
                     closestEnemyBarracks.get().getY(),
-                    site) >= COMFORT_TOWERS_NUMBER && site.getGold().orElse(1) > 0;
+                    site) >= comfortTowersNumber(gameState) && site.getGold().orElse(1) > 0;
 
             if (site.getStructureType() == StructureType.TOWER) {
                 // Integer division intended
@@ -648,7 +648,7 @@ class Player {
                                 gameState.getMyQueen().getY(),
                                 closestEnemyBarracks.get().getX(),
                                 closestEnemyBarracks.get().getY(),
-                                null) < COMFORT_TOWERS_NUMBER) {
+                                null) < comfortTowersNumber(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 } else if (RunFromKnightsRule.isPanicMode(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
@@ -671,6 +671,14 @@ class Player {
                 }
             }
             return Optional.empty();
+        }
+
+        public static int comfortTowersNumber(GameState gameState) {
+            if (gameState.getEnemyGold() < KNIGHT_COST && gameState.getEnemyOverallIncome() == 0) {
+                return 0;
+            } else {
+                return COMFORT_TOWERS_NUMBER;
+            }
         }
 
         public static Optional<BuildingSite> closestToStructure(StructureType type,
