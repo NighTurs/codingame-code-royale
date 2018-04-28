@@ -557,6 +557,7 @@ class Player {
             }
 
             boolean uselessTower = (site.getStructureType() == StructureType.TOWER) && closestEnemyBarracks.isPresent()
+                    && !applyKnightBonus
                     && towersOnPath(gameState,
                     myQueen.getX(),
                     myQueen.getY(),
