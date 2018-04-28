@@ -978,7 +978,6 @@ class Player {
             buildingSiteById =
                     buildingSites.stream().collect(Collectors.toMap(BuildingSite::getId, Function.identity()));
             goldLeft = gold;
-            touchedSiteOpt = touchedSite == -1 ? Optional.empty() : Optional.of(getBuildingSiteById(touchedSite));
             this.buildingSites = buildingSites;
             this.units = units;
             //noinspection ConstantConditions
@@ -986,6 +985,17 @@ class Player {
                     .filter(x -> x.getOwner() == Owner.FRIENDLY && x.getUnitType() == UnitType.QUEEN)
                     .findFirst()
                     .get();
+            if (touchedSite == -1) {
+                touchedSiteOpt = Optional.empty();
+                for (BuildingSite site : buildingSites) {
+                    if (Utils.dist(myQueen.getX(), myQueen.getY(), site.getX(), site.getY()) - site.getRadius()
+                            - QUEEN_RADIUS < CONTACT_RANGE) {
+                        touchedSiteOpt = Optional.of(site);
+                    }
+                }
+            } else {
+                touchedSiteOpt = Optional.of(getBuildingSiteById(touchedSite));
+            }
             //noinspection ConstantConditions
             this.enemyQueen = units.stream()
                     .filter(x -> x.getOwner() == Owner.ENEMY && x.getUnitType() == UnitType.QUEEN)
