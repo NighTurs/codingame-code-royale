@@ -554,6 +554,11 @@ class Player {
                     return Optional.of(new BuildingDecision(StructureType.TOWER,
                             null,
                             -(site.getIncomeRate() + 1) * QUEEN_SPEED + enemyKnightsBonus));
+                } else if (myBarracksCount > 0 && myGiantCount == 0
+                        && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST / 2) {
+                    return Optional.of(new BuildingDecision(StructureType.BARRACKS,
+                            BarracksType.GIANT,
+                            (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
                 }
             }
 
@@ -603,10 +608,10 @@ class Player {
                 } else if (RunFromKnightsRule.isPanicMode(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myGiantCount == 0
-                        && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST) {
+                        && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST / 2) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.GIANT,
-                            0 + enemyKnightsBonus));
+                            (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myBarracksDistToEnemyQueen.isPresent()
                         && myBarracksDistToEnemyQueen.get() - distToEnemyQueen >= BARRACKS_REPLACEMENT_THRESHOLD_DIST) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
@@ -831,8 +836,8 @@ class Player {
                             x.getY(),
                             gameState.getEnemyQueen().getX(),
                             gameState.getEnemyQueen().getY())));
-            if (knightBarrack.isPresent() && ((waitTillNext <= 0 || waitTillNext > WAITING_THRESHOLD) || (myKnightsAreOut
-                    && gold >= KNIGHT_COST))) {
+            if (knightBarrack.isPresent() && ((waitTillNext <= 0 || waitTillNext > WAITING_THRESHOLD) || (
+                    myKnightsAreOut && gold >= KNIGHT_COST))) {
                 gold -= KNIGHT_COST;
                 trainSites.add(knightBarrack.get().getId());
             }
