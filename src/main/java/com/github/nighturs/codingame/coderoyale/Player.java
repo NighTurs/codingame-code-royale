@@ -490,34 +490,54 @@ class Player {
             if (site.getOwner() == Owner.ENEMY && site.getStructureType() == StructureType.TOWER) {
                 return Optional.empty();
             }
-            int myBarracksCount =
-                    countStructures(gameState, StructureType.BARRACKS, BarracksType.KNIGHT, Owner.FRIENDLY);
-            int myGiantCount = countStructures(gameState, StructureType.BARRACKS, BarracksType.GIANT, Owner.FRIENDLY);
-            int enemyBarracksCount =
-                    countStructures(gameState, StructureType.BARRACKS, BarracksType.KNIGHT, Owner.ENEMY);
-            int myMinesCount = countStructures(gameState, StructureType.MINE, null, Owner.FRIENDLY);
+
+            Unit myQueen = gameState.getMyQueen();
+            Unit enemyQueen = gameState.getEnemyQueen();
+            int myBarracksCount = 0;
+            int myGiantCount = 0;
+            int enemyBarracksCount = 0;
+            int myMinesCount = 0;
+            double closestEnemyBarracksDist = Double.MAX_VALUE;
+            double closestMyBarracksDist = Double.MAX_VALUE;
+            double dist = 0;
+            BuildingSite closestEnemyBarracksOpt = null;
+            BuildingSite closestMyBarracksOpt = null;
+            for (BuildingSite s : gameState.getBuildingSites()) {
+                if (s.getStructureType() == StructureType.BARRACKS && s.getBarracksType() == BarracksType.KNIGHT
+                        && s.getOwner() == Owner.FRIENDLY) {
+                    myBarracksCount++;
+                    dist = Utils.dist(enemyQueen.getX(), enemyQueen.getY(), s.getX(), s.getY());
+                    if (dist < closestMyBarracksDist) {
+                        closestMyBarracksDist = dist;
+                        closestMyBarracksOpt = s;
+                    }
+                } else if (s.getStructureType() == StructureType.BARRACKS && s.getBarracksType() == BarracksType.KNIGHT
+                        && s.getOwner() == Owner.ENEMY) {
+                    enemyBarracksCount++;
+                    dist = Utils.dist(myQueen.getX(), myQueen.getY(), s.getX(), s.getY());
+                    if (dist < closestEnemyBarracksDist) {
+                        closestEnemyBarracksDist = dist;
+                        closestEnemyBarracksOpt = s;
+                    }
+                } else if (s.getStructureType() == StructureType.BARRACKS && s.getBarracksType() == BarracksType.GIANT
+                        && s.getOwner() == Owner.FRIENDLY) {
+                    myGiantCount++;
+                } else if (s.getStructureType() == StructureType.MINE && s.getOwner() == Owner.FRIENDLY) {
+                    myMinesCount++;
+                }
+            }
+
+            Optional<BuildingSite> closestEnemyBarracks = Optional.ofNullable(closestEnemyBarracksOpt);
+            Optional<BuildingSite> closestMyBarracks = Optional.ofNullable(closestMyBarracksOpt);
             double distToEnemyQueen = Utils.dist(gameState.getEnemyQueen().getX(),
                     gameState.getEnemyQueen().getY(),
                     site.getX(),
                     site.getY());
-            Unit myQueen = gameState.getMyQueen();
-            Unit enemyQueen = gameState.getEnemyQueen();
+
             double maxDistToEnemyQueen = Utils.dist(gameState.getMyCornerX(),
                     gameState.getMycornerY(),
                     enemyQueen.getX(),
                     enemyQueen.getY());
-            Optional<BuildingSite> closestEnemyBarracks = closestToStructure(StructureType.BARRACKS,
-                    BarracksType.KNIGHT,
-                    Owner.ENEMY,
-                    myQueen.getX(),
-                    myQueen.getY(),
-                    gameState);
-            Optional<BuildingSite> closestMyBarracks = closestToStructure(StructureType.BARRACKS,
-                    BarracksType.KNIGHT,
-                    Owner.FRIENDLY,
-                    enemyQueen.getX(),
-                    enemyQueen.getY(),
-                    gameState);
             Optional<Double> myBarracksDistToEnemyQueen =
                     closestMyBarracks.map(buildingSite -> Utils.dist(buildingSite.getX(),
                             buildingSite.getY(),
@@ -670,20 +690,6 @@ class Player {
                 }
             }
             return count;
-        }
-
-        public static int countStructures(GameState gameState,
-                                          StructureType structureType,
-                                          BarracksType barracksType,
-                                          Owner owner) {
-            int counter = 0;
-            for (BuildingSite site : gameState.getBuildingSites()) {
-                if (site.getStructureType() == structureType && (barracksType == null
-                        || site.getBarracksType() == barracksType) && site.getOwner() == owner) {
-                    counter++;
-                }
-            }
-            return counter;
         }
 
         @Override
