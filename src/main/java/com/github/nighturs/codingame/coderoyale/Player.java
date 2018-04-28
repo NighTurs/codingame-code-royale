@@ -593,6 +593,11 @@ class Player {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
                             (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
+                } else if (myBarracksCount > 0 && myBarracksDistToEnemyQueen.isPresent()
+                        && myBarracksDistToEnemyQueen.get() - distToEnemyQueen >= BARRACKS_REPLACEMENT_THRESHOLD_DIST) {
+                    return Optional.of(new BuildingDecision(StructureType.BARRACKS,
+                            BarracksType.KNIGHT,
+                            0 + enemyKnightsBonus));
                 } else if ((enemyBarracksCount > 0 || applyKnightBonus) && closestEnemyBarracks.isPresent() &&
                         towersOnPath(gameState,
                                 gameState.getMyQueen().getX(),
