@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +29,8 @@ class Player {
     static final int MAX_TOWER_HP = 800;
     static final int QUEEN_TOWER_UP = 100;
     static final int KNIGHT_TRAIN_TURNS = 4;
+    static final int ARCHER_TRAIN_TURNS = 7;
+    static final int GIANT_TRAIN_TURNS = 9;
 
     public static void main(String[] args) {
         Scanner in = new Scanner(System.in);
@@ -916,6 +919,9 @@ class Player {
         private int myCornerX = -1;
         private int mycornerY = -1;
         private int overallIncome = 0;
+        private int enemyGold = 100;
+        private Map<Integer, Integer> incomeRate = new HashMap<>();
+        private int enemyOverallIncome = 0;
 
         public static GameState create(List<BuildingSiteStatic> buildingSiteStatics) {
             return new GameState(buildingSiteStatics);
@@ -971,6 +977,58 @@ class Player {
             return overallIncome;
         }
 
+        public int getEnemyGold() {
+            return enemyGold;
+        }
+
+        public int getEnemyOverallIncome() {
+            return enemyOverallIncome;
+        }
+
+        private void updateEnemyGold(Unit prevEnemyQueen, Unit curEnemyQueen) {
+            this.enemyOverallIncome = 0;
+            for (BuildingSite site : buildingSites) {
+                if (site.getStructureType() == StructureType.MINE && site.getOwner() == Owner.ENEMY) {
+                    if (incomeRate.getOrDefault(site.getId(), 0) == 0) {
+                        incomeRate.put(site.getId(), 1);
+                    } else {
+                        if (prevEnemyQueen.getX() == curEnemyQueen.getX()
+                                && prevEnemyQueen.getY() == curEnemyQueen.getY() &&
+                                Utils.dist(curEnemyQueen.getX(), curEnemyQueen.getY(), site.getX(), site.getY())
+                                        - site.getRadius() - QUEEN_RADIUS < CONTACT_RANGE) {
+                            incomeRate.put(site.getId(), incomeRate.get(site.getId()) + 1);
+                        }
+                    }
+                    enemyGold += incomeRate.get(site.getId());
+                    this.enemyOverallIncome += site.getIncomeRate();
+                } else {
+                    incomeRate.put(site.getId(), 0);
+                }
+                if (site.getStructureType() == StructureType.BARRACKS && site.getOwner() == Owner.ENEMY) {
+                    switch (site.getBarracksType()) {
+                        case KNIGHT:
+                            if (KNIGHT_TRAIN_TURNS == site.getUntilTrain()) {
+                                enemyGold -= KNIGHT_COST;
+                            }
+                            break;
+                        case ARCHER:
+                            if (ARCHER_TRAIN_TURNS == site.getUntilTrain()) {
+                                enemyGold -= ARCHER_COST;
+                            }
+                            break;
+                        case GIANT:
+                            if (GIANT_TRAIN_TURNS == site.getUntilTrain()) {
+                                enemyGold -= GIANT_COST;
+                            }
+                            break;
+                        default:
+                            throw new RuntimeException("Unknown barracks type");
+                    }
+                }
+                enemyGold = Math.max(enemyGold, 0);
+            }
+        }
+
         public void initTurn(int gold,
                              int touchedSite,
                              @SuppressWarnings("ParameterHidesMemberVariable") List<BuildingSite> buildingSites,
@@ -996,6 +1054,7 @@ class Player {
             } else {
                 touchedSiteOpt = Optional.of(getBuildingSiteById(touchedSite));
             }
+            Unit prevEnemyQueen = this.enemyQueen;
             //noinspection ConstantConditions
             this.enemyQueen = units.stream()
                     .filter(x -> x.getOwner() == Owner.ENEMY && x.getUnitType() == UnitType.QUEEN)
@@ -1012,6 +1071,8 @@ class Player {
                     mycornerY = GRID_HEIGHT;
                 }
             }
+            updateEnemyGold(prevEnemyQueen, enemyQueen);
+            System.err.println(String.format("Enemy gold %d", enemyGold));
         }
     }
 
