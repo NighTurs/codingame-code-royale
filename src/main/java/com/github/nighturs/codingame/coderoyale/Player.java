@@ -617,7 +617,9 @@ class Player {
             if (site.getStructureType() == StructureType.TOWER) {
                 // Integer division intended
                 if ((MAX_TOWER_HP - site.getTowerHP()) / QUEEN_TOWER_UP > 2 && !uselessTower) {
-                    return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                    return Optional.of(new BuildingDecision(StructureType.TOWER,
+                            null,
+                            -QUEEN_SPEED + enemyKnightsBonus));
                 }
             }
 
