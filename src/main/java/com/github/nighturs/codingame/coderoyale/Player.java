@@ -522,6 +522,7 @@ class Player {
             int myGiantCount = 0;
             int enemyBarracksCount = 0;
             int myMinesCount = 0;
+            int myTowersCount = 0;
             double closestEnemyBarracksDist = Double.MAX_VALUE;
             double closestMyBarracksDist = Double.MAX_VALUE;
             double dist;
@@ -549,6 +550,8 @@ class Player {
                     myGiantCount++;
                 } else if (s.getStructureType() == StructureType.MINE && s.getOwner() == Owner.FRIENDLY) {
                     myMinesCount++;
+                } else if (s.getStructureType() == StructureType.TOWER && s.getOwner() == Owner.FRIENDLY) {
+                    myTowersCount++;
                 }
             }
 
@@ -568,6 +571,9 @@ class Player {
                             buildingSite.getY(),
                             enemyQueen.getX(),
                             enemyQueen.getY()));
+
+            double firstTowerPenalty =
+                    (myTowersCount == 0 && !second ? -distToEnemyQueen / 3 : 0);
 
             double enemyKnightsBonus = Double.MAX_VALUE;
             Optional<Unit> closestEnemyKnight = Optional.empty();
@@ -598,7 +604,7 @@ class Player {
                         null) < comfortTowersNumber(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER,
                             null,
-                            -(site.getIncomeRate() + 1) * 2 * QUEEN_SPEED + enemyKnightsBonus));
+                            -(site.getIncomeRate() + 1) * 2 * QUEEN_SPEED + firstTowerPenalty + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myGiantCount == 0
                         && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST / 2 && !second) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
@@ -652,7 +658,9 @@ class Player {
                                 closestEnemyBarracks.get().getX(),
                                 closestEnemyBarracks.get().getY(),
                                 null) < comfortTowersNumber(gameState)) {
-                    return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                    return Optional.of(new BuildingDecision(StructureType.TOWER,
+                            null,
+                            firstTowerPenalty + enemyKnightsBonus));
                 } else if (RunFromKnightsRule.isPanicMode(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myGiantCount == 0
