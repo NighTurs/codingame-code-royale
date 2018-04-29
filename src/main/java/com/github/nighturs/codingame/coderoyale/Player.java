@@ -220,6 +220,7 @@ class Player {
     static class GoToNewSiteRule implements Rule {
 
         private static final int ENEMY_TERRITORY = 450;
+        private static final int MAX_DIST_TO_SITE = 800;
 
         private static class Path {
 
@@ -389,7 +390,8 @@ class Player {
                         && gameState.getTouchedSiteOpt().get().getId() == site.getId()) {
                     continue;
                 }
-                if (Math.abs(site.getX() - (GRID_WIDTH - gameState.getMyCornerX())) <= ENEMY_TERRITORY) {
+                if (Math.abs(site.getX() - (GRID_WIDTH - gameState.getMyCornerX())) <= ENEMY_TERRITORY
+                        || Utils.dist(myQueen.getX(), myQueen.getY(), site.getX(), site.getY()) > MAX_DIST_TO_SITE) {
                     continue;
                 }
                 boolean inEnemyTowerRange = false;
@@ -397,7 +399,8 @@ class Player {
                     if (siteB.getOwner() != Owner.ENEMY || siteB.getStructureType() != StructureType.TOWER) {
                         continue;
                     }
-                    if (Utils.dist(site.getX(), site.getY(), siteB.getX(), siteB.getY()) + siteB.getRadius()
+                    if (Utils.dist(site.getX(), site.getY(), siteB.getX(), siteB.getY()) + (
+                            gameState.getEnemyQueen().getHp() > gameState.getMyQueen().getHp() ? siteB.getRadius() : 0)
                             <= siteB.getTowerRange()) {
                         inEnemyTowerRange = true;
                     }
