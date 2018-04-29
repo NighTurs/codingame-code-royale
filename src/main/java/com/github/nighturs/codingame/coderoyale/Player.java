@@ -427,12 +427,6 @@ class Player {
 
             for (int i = 0; i < Math.min(vacantSitesFirst.size(), 4); i++) {
                 BuildingSite s = vacantSitesFirst.get(i).getKey();
-                System.err.println(String.format("Rate id=%d pen=%f d=%f o=%f",
-                        s.getId(),
-                        vacantSitesFirst.get(i).getValue(),
-                        Utils.dist(myQueen.getX(), myQueen.getY(), s.getX(), s.getY()),
-                        Utils.dist(myQueen.getX(), myQueen.getY(), s.getX(), s.getY()) - vacantSitesFirst.get(i)
-                                .getValue()));
             }
 
             if (vacantSitesFirst.isEmpty()) {
@@ -1091,7 +1085,6 @@ class Player {
                 }
             }
             updateEnemyGold(prevEnemyQueen, enemyQueen);
-            System.err.println(String.format("Enemy gold %d", enemyGold));
         }
     }
 
