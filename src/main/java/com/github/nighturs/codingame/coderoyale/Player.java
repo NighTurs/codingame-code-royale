@@ -488,6 +488,7 @@ class Player {
     static class BuildStructureRule implements Rule {
 
         private static final int BARRACKS_REPLACEMENT_THRESHOLD_DIST = 400;
+        private static final int SURROUNDING_THRESHOLD = 400;
         private static final int COMFORT_TOWERS_NUMBER = 2;
 
         private static class BuildingDecision {
@@ -529,6 +530,7 @@ class Player {
             int enemyBarracksCount = 0;
             int myMinesCount = 0;
             int myTowersCount = 0;
+            int emptySurroundings = 0;
             double closestEnemyBarracksDist = Double.MAX_VALUE;
             double closestMyBarracksDist = Double.MAX_VALUE;
             double dist;
@@ -558,6 +560,10 @@ class Player {
                     myMinesCount++;
                 } else if (s.getStructureType() == StructureType.TOWER && s.getOwner() == Owner.FRIENDLY) {
                     myTowersCount++;
+                } else if (s.getStructureType() == StructureType.NONE) {
+                    if (Utils.dist(s.getX(), s.getY(), site.getX(), site.getY()) < SURROUNDING_THRESHOLD) {
+                        emptySurroundings++;
+                    }
                 }
             }
 
@@ -577,8 +583,6 @@ class Player {
                             buildingSite.getY(),
                             enemyQueen.getX(),
                             enemyQueen.getY()));
-
-            double firstTowerPenalty = (myTowersCount == 0 && !second ? -distToEnemyQueen / 3 : 0);
 
             double enemyKnightsBonus = Double.MAX_VALUE;
             Optional<Unit> closestEnemyKnight = Optional.empty();
@@ -609,7 +613,8 @@ class Player {
                         null) < comfortTowersNumber(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER,
                             null,
-                            -(site.getIncomeRate() + 1) * 2 * QUEEN_SPEED + firstTowerPenalty + enemyKnightsBonus));
+                            -(site.getIncomeRate() + 1) * 2 * QUEEN_SPEED + emptySurroundings * QUEEN_SPEED
+                                    + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myGiantCount == 0
                         && gameState.getGoldLeft() > GIANT_COST + KNIGHT_COST / 2 && !second) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
@@ -654,7 +659,7 @@ class Player {
                 } else if (myBarracksCount > 0 && myMinesCount >= 2 && myTowersCount == 0 && !second) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER,
                             null,
-                            firstTowerPenalty + enemyKnightsBonus));
+                            emptySurroundings * QUEEN_SPEED + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myBarracksDistToEnemyQueen.isPresent()
                         && myBarracksDistToEnemyQueen.get() - distToEnemyQueen >= BARRACKS_REPLACEMENT_THRESHOLD_DIST) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
@@ -669,7 +674,7 @@ class Player {
                                 null) < comfortTowersNumber(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER,
                             null,
-                            firstTowerPenalty + enemyKnightsBonus));
+                            emptySurroundings * QUEEN_SPEED + enemyKnightsBonus));
                 } else if (RunFromKnightsRule.isPanicMode(gameState)) {
                     return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myGiantCount == 0
@@ -687,7 +692,9 @@ class Player {
                             null,
                             (site.getMaxMineSize().orElse(1) - 1) * QUEEN_SPEED + enemyKnightsBonus));
                 } else {
-                    return Optional.of(new BuildingDecision(StructureType.TOWER, null, 0 + enemyKnightsBonus));
+                    return Optional.of(new BuildingDecision(StructureType.TOWER,
+                            null,
+                            emptySurroundings + enemyKnightsBonus));
                 }
             }
             return Optional.empty();
