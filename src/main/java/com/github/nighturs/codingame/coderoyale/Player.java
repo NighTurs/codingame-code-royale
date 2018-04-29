@@ -385,13 +385,15 @@ class Player {
             List<SimpleEntry<BuildingSite, Double>> vacantSitesFirst = new ArrayList<>();
             List<SimpleEntry<BuildingSite, Double>> vacantSitesSecond = new ArrayList<>();
             Unit myQueen = gameState.getMyQueen();
+            outer_loop:
             for (BuildingSite site : gameState.getBuildingSites()) {
                 if (gameState.getTouchedSiteOpt().isPresent()
                         && gameState.getTouchedSiteOpt().get().getId() == site.getId()) {
                     continue;
                 }
+                double distToQueen = Utils.dist(myQueen.getX(), myQueen.getY(), site.getX(), site.getY());
                 if (Math.abs(site.getX() - (GRID_WIDTH - gameState.getMyCornerX())) <= ENEMY_TERRITORY
-                        || Utils.dist(myQueen.getX(), myQueen.getY(), site.getX(), site.getY()) > MAX_DIST_TO_SITE) {
+                        || distToQueen > MAX_DIST_TO_SITE) {
                     continue;
                 }
                 boolean inEnemyTowerRange = false;
@@ -408,6 +410,16 @@ class Player {
                 if (inEnemyTowerRange) {
                     continue;
                 }
+                for (Unit unit : gameState.getUnits()) {
+                    if (unit.getOwner() != Owner.ENEMY || unit.getUnitType() != UnitType.KNIGHT) {
+                        continue;
+                    }
+                    double dist = Utils.dist(unit.getX(), unit.getY(), site.getX(), site.getY());
+                    if (dist / KNIGHT_SPEED <= distToQueen / QUEEN_SPEED) {
+                       continue outer_loop;
+                    }
+                }
+
                 Optional<BuildStructureRule.BuildingDecision> buildingDecisionFirst =
                         BuildStructureRule.buildingDecision(site, gameState, false);
                 if (!buildingDecisionFirst.isPresent()) {
@@ -566,8 +578,7 @@ class Player {
                             enemyQueen.getX(),
                             enemyQueen.getY()));
 
-            double firstTowerPenalty =
-                    (myTowersCount == 0 && !second ? -distToEnemyQueen / 3 : 0);
+            double firstTowerPenalty = (myTowersCount == 0 && !second ? -distToEnemyQueen / 3 : 0);
 
             double enemyKnightsBonus = Double.MAX_VALUE;
             Optional<Unit> closestEnemyKnight = Optional.empty();
