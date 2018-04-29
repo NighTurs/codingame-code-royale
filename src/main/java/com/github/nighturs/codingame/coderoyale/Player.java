@@ -416,7 +416,7 @@ class Player {
                     }
                     double dist = Utils.dist(unit.getX(), unit.getY(), site.getX(), site.getY());
                     if (dist / KNIGHT_SPEED <= distToQueen / QUEEN_SPEED) {
-                       continue outer_loop;
+                        continue outer_loop;
                     }
                 }
 
@@ -651,15 +651,15 @@ class Player {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
                             (maxDistToEnemyQueen - distToEnemyQueen) / 2 + enemyKnightsBonus));
+                } else if (myBarracksCount > 0 && myMinesCount >= 2 && myTowersCount == 0 && !second) {
+                    return Optional.of(new BuildingDecision(StructureType.TOWER,
+                            null,
+                            firstTowerPenalty + enemyKnightsBonus));
                 } else if (myBarracksCount > 0 && myBarracksDistToEnemyQueen.isPresent()
                         && myBarracksDistToEnemyQueen.get() - distToEnemyQueen >= BARRACKS_REPLACEMENT_THRESHOLD_DIST) {
                     return Optional.of(new BuildingDecision(StructureType.BARRACKS,
                             BarracksType.KNIGHT,
                             0 + enemyKnightsBonus));
-                } else if (myBarracksCount > 0 && myMinesCount >= 2 && myTowersCount == 0 && !second) {
-                    return Optional.of(new BuildingDecision(StructureType.TOWER,
-                            null,
-                            firstTowerPenalty + enemyKnightsBonus));
                 } else if ((enemyBarracksCount > 0 || applyKnightBonus) && closestEnemyBarracks.isPresent() &&
                         towersOnPath(gameState,
                                 gameState.getMyQueen().getX(),
